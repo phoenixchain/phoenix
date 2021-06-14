@@ -134,6 +134,7 @@ var (
 		IstanbulBlock:       big.NewInt(6_485_846),
 		MuirGlacierBlock:    big.NewInt(7_117_117),
 		BerlinBlock:         big.NewInt(9_812_189),
+		LondonBlock:         big.NewInt(10_499_401),
 		Ethash:              new(EthashConfig),
 	}
 
@@ -174,6 +175,7 @@ var (
 		IstanbulBlock:       big.NewInt(5_435_345),
 		MuirGlacierBlock:    nil,
 		BerlinBlock:         big.NewInt(8_290_928),
+		LondonBlock:         big.NewInt(8_897_988),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -215,6 +217,7 @@ var (
 		IstanbulBlock:       big.NewInt(1_561_651),
 		MuirGlacierBlock:    nil,
 		BerlinBlock:         big.NewInt(4_460_644),
+		LondonBlock:         big.NewInt(5_062_605),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,

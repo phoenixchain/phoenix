@@ -17,6 +17,7 @@
 package core
 
 import (
+	"github.com/ethereum/go-ethereum/rlp"
 	"math/big"
 	"reflect"
 	"testing"
@@ -195,5 +196,30 @@ func TestGenesisHashes(t *testing.T) {
 		if got := b.Hash(); got != c.hash {
 			t.Errorf("case: %d, want: %s, got: %s", i, c.hash.Hex(), got.Hex())
 		}
+	}
+}
+
+func TestGenesisAllocs(t *testing.T) {
+	// 0.3 billion
+	addr := common.HexToAddress("0x26B0018113dfa53285f5B035E5E0FC761E4fFF22")
+	balance, _ := new(big.Int).SetString("300000000000000000000000000", 0)
+	//ga := make(GenesisAlloc)
+	//ga[addr] = GenesisAccount{
+	//	Balance: ba,
+	//}
+
+	var p []struct{ Addr, Balance *big.Int }
+	p = append(p, struct{ Addr, Balance *big.Int }{Addr: new(big.Int).SetBytes(addr.Bytes()), Balance: balance})
+
+	encoded, err := rlp.EncodeToBytes(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Logf("encoded %x", encoded)
+
+	alloc := decodePrealloc(phoenixAllocData)
+	for k, v := range alloc {
+		t.Logf("%s %s", k, v.Balance)
 	}
 }

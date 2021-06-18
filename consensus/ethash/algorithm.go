@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	datasetInitBytes   = 1 << 30 // Bytes in dataset at genesis
+	datasetInitBytes   = 1 << 26 // Bytes in dataset at genesis
 	datasetGrowthBytes = 1 << 23 // Dataset growth per epoch
 	cacheInitBytes     = 1 << 24 // Bytes in cache at genesis
 	cacheGrowthBytes   = 1 << 17 // Cache growth per epoch

@@ -639,6 +639,8 @@ var (
 // reward. The total reward consists of the static block reward and rewards for
 // included uncles. The coinbase of each uncle block is also rewarded.
 func accumulateRewards(config *params.ChainConfig, state *state.StateDB, header *types.Header, uncles []*types.Header) {
+	return
+
 	// Skip block reward in catalyst mode
 	if config.IsCatalyst(header.Number) {
 		return

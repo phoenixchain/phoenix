@@ -618,7 +618,7 @@ func (p *Spos) Prepare(chain consensus.ChainHeaderReader, header *types.Header) 
 	header.Extra = append(header.Extra, nextForkHash[:]...)
 
 	if (number-p.chainConfig.SposBlock.Uint64())%p.config.Epoch == 0 {
-		newValidators, err := p.getCurrentValidatorsV2(header.ParentHash)
+		newValidators, err := p.getCurrentValidatorsV2(header)
 		if err != nil {
 			return err
 		}
@@ -916,8 +916,26 @@ func (p *Spos) Close() error {
 	return nil
 }
 
-func (p *Spos) getCurrentValidatorsV2(blockHash common.Hash) ([]common.Address, error) {
+func (p *Spos) getCurrentValidatorsV2(chain consensus.ChainHeaderReader, header *types.Header) ([]common.Address, error) {
+	// fetch all validators
+	var validators []common.Address
 
+	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
+	if parent == nil {
+		return nil, fmt.Errorf("no parent")
+	}
+	if len(header.Extra) < extraSeal {
+		return nil, fmt.Errorf("no parent sig")
+	}
+	//sig := make([]byte, extraSeal, extraSeal)
+	//copy(sig, header.Extra[len(header.Extra)-extraSeal:])
+	randSeed := crypto.Keccak256(header.Extra[len(header.Extra)-extraSeal:])
+
+	for _, v := range validators {
+
+	}
+
+	return validators, nil
 }
 
 // getCurrentValidators get current validators

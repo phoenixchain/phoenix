@@ -202,7 +202,7 @@ func TestGenesisHashes(t *testing.T) {
 func TestGenesisAllocs(t *testing.T) {
 	// 0.3 billion
 	addr := common.HexToAddress("0x26B0018113dfa53285f5B035E5E0FC761E4fFF22")
-	balance, _ := new(big.Int).SetString("300000000000000000000000000", 0)
+	balance, _ := new(big.Int).SetString("210000000000000000000000000", 0)
 	//ga := make(GenesisAlloc)
 	//ga[addr] = GenesisAccount{
 	//	Balance: ba,

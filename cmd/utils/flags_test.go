@@ -18,6 +18,8 @@
 package utils
 
 import (
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/params"
 	"reflect"
 	"testing"
 )
@@ -60,5 +62,21 @@ func Test_SplitTagsFlag(t *testing.T) {
 				t.Errorf("splitTagsFlag() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDecodeV5(t *testing.T) {
+
+	urls := params.V5Bootnodes
+	bootstrapNodesV5 := make([]*enode.Node, 0, len(urls))
+
+	for _, url := range urls {
+		node, err := enode.Parse(enode.ValidSchemes, url)
+		if err != nil {
+			t.Fatal("Bootstrap URL invalid", "enode", url, "err", err)
+			continue
+		}
+		t.Log("node", node.IP(), node.URLv4())
+		bootstrapNodesV5 = append(bootstrapNodesV5, node)
 	}
 }

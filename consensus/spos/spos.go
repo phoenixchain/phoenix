@@ -3,7 +3,6 @@ package spos
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -26,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -57,7 +55,7 @@ const (
 	initialBackOffTime   = uint64(1) // second
 
 	systemRewardPercent = 4 // it means 1/2^4 = 1/16 percentage of gas fee incoming will be distributed to system
-
+	validatorNum        = 21
 )
 
 var (
@@ -212,6 +210,12 @@ type Spos struct {
 
 	// The fields below are for testing only
 	fakeDiff bool // Skip difficulty verifications
+}
+
+// ValidatorStatus keeps track of recent status of validator
+type ValidatorStatus struct {
+	addr  common.Address
+	value *big.Int
 }
 
 // New creates a Spos consensus engine.
@@ -617,17 +621,24 @@ func (p *Spos) Prepare(chain consensus.ChainHeaderReader, header *types.Header) 
 	var nextForkHash [4]byte // fixme
 	header.Extra = append(header.Extra, nextForkHash[:]...)
 
-	if (number-p.chainConfig.SposBlock.Uint64())%p.config.Epoch == 0 {
-		newValidators, err := p.getCurrentValidatorsV2(header)
-		if err != nil {
-			return err
-		}
-		// sort validator by address
-		sort.Sort(validatorsAscending(newValidators))
-		for _, validator := range newValidators {
-			header.Extra = append(header.Extra, validator.Bytes()...)
-		}
+	//if (number-p.chainConfig.SposBlock.Uint64())%p.config.Epoch == 0 {
+	//	newValidators, err := p.getCurrentValidatorsV2(header)
+	//	if err != nil {
+	//		return err
+	//	}
+	//	// sort validator by address
+	//	sort.Sort(validatorsAscending(newValidators))
+	//	for _, validator := range newValidators {
+	//		header.Extra = append(header.Extra, validator.Bytes()...)
+	//	}
+	//}
+
+	// validator
+	validator, err := p.getCurrentValidatorV3(chain, header)
+	if err != nil {
+		return err
 	}
+	header.Extra = append(header.Extra, validator.Bytes()...)
 
 	// add extra seal space
 	header.Extra = append(header.Extra, make([]byte, extraSeal)...)
@@ -647,9 +658,12 @@ func (p *Spos) Prepare(chain consensus.ChainHeaderReader, header *types.Header) 
 	return nil
 }
 
+func (p *Spos) Finalize(consensus.ChainHeaderReader, *types.Header, *state.StateDB, []*types.Transaction, []*types.Header) {
+}
+
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
-func (p *Spos) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
+func (p *Spos) FinalizeV2(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
 	// warn if not in majority fork
 	number := header.Number.Uint64()
@@ -657,10 +671,10 @@ func (p *Spos) Finalize(chain consensus.ChainHeaderReader, header *types.Header,
 	if err != nil {
 		panic(err)
 	}
-	nextForkHash := forkid.NextForkHash(p.chainConfig, p.genesisHash, number)
-	if !snap.isMajorityFork(hex.EncodeToString(nextForkHash[:])) {
-		log.Debug("there is a possible fork, and your client is not the majority. Please check...", "nextForkHash", hex.EncodeToString(nextForkHash[:]))
-	}
+	//nextForkHash := forkid.NextForkHash(p.chainConfig, p.genesisHash, number)
+	//if !snap.isMajorityFork(hex.EncodeToString(nextForkHash[:])) {
+	//	log.Debug("there is a possible fork, and your client is not the majority. Please check...", "nextForkHash", hex.EncodeToString(nextForkHash[:]))
+	//}
 	// If the block is a epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%p.config.Epoch == 0 {
@@ -719,9 +733,13 @@ func (p *Spos) Finalize(chain consensus.ChainHeaderReader, header *types.Header,
 	return nil
 }
 
+func (p *Spos) FinalizeAndAssemble(consensus.ChainHeaderReader, *types.Header, *state.StateDB, []*types.Transaction, []*types.Header, []*types.Receipt) (*types.Block, error) {
+	return nil, nil
+}
+
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
-func (p *Spos) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+func (p *Spos) FinalizeAndAssembleV2(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	cx := chainContext{Chain: chain, parlia: p}
@@ -842,7 +860,7 @@ func (p *Spos) Seal(chain consensus.ChainHeaderReader, block *types.Block, resul
 	log.Info("Sealing block with", "number", number, "delay", delay, "headerDifficulty", header.Difficulty, "val", val.Hex())
 
 	// Sign all the things!
-	sig, err := signFn(accounts.Account{Address: val}, accounts.MimetypeParlia, ParliaRLP(header, p.chainConfig.ChainID))
+	sig, err := signFn(accounts.Account{Address: val}, accounts.MimetypeSpos, ParliaRLP(header, p.chainConfig.ChainID))
 	if err != nil {
 		return err
 	}
@@ -916,26 +934,60 @@ func (p *Spos) Close() error {
 	return nil
 }
 
-func (p *Spos) getCurrentValidatorsV2(chain consensus.ChainHeaderReader, header *types.Header) ([]common.Address, error) {
-	// fetch all validators
+func (p *Spos) getStakedValue(addr common.Address, blockNrOrHash rpc.BlockNumberOrHash) *big.Int {
+	return nil
+}
+
+func (p *Spos) getHeartbeatBlock(addr common.Address, blockNrOrHash rpc.BlockNumberOrHash) common.Hash {
+	return common.Hash{}
+}
+
+func (p *Spos) getCurrentValidatorV3(chain consensus.ChainHeaderReader, header *types.Header) (common.Address, error) {
+	distance := header.Number.Uint64() - p.chainConfig.SposBlock.Uint64()
+	round := distance / p.config.Epoch
+	epochStart := p.chainConfig.SposBlock.Uint64() + round*p.config.Epoch
+	epochEnd := epochStart + p.config.Epoch // exclude
+
+	// todo: get validators between start and end
+	_ = epochStart
+	_ = epochEnd
 	var validators []common.Address
 
+	// randomly select 1
 	parent := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 	if parent == nil {
-		return nil, fmt.Errorf("no parent")
+		return common.Address{}, fmt.Errorf("no parent")
 	}
-	if len(header.Extra) < extraSeal {
-		return nil, fmt.Errorf("no parent sig")
+	if len(parent.Extra) < extraSeal {
+		return common.Address{}, fmt.Errorf("no parent sig")
 	}
-	//sig := make([]byte, extraSeal, extraSeal)
-	//copy(sig, header.Extra[len(header.Extra)-extraSeal:])
-	randSeed := crypto.Keccak256(header.Extra[len(header.Extra)-extraSeal:])
-
+	randSeed := crypto.Keccak256Hash(parent.Extra[len(parent.Extra)-extraSeal:])
+	blockNr := rpc.BlockNumberOrHashWithHash(header.ParentHash, false)
+	sum := big.NewInt(0)
+	var allValidators []ValidatorStatus
 	for _, v := range validators {
+		value := p.getStakedValue(v, blockNr)
+		sum.Add(sum, value)
 
+		allValidators = append(allValidators, ValidatorStatus{
+			addr:  v,
+			value: value,
+		})
+	}
+	target := new(big.Int).Mod(randSeed.Big(), sum)
+	// find the target
+	sort.Slice(allValidators, func(i, j int) bool {
+		return bytes.Compare(allValidators[i].addr[:], allValidators[j].addr[:]) < 0
+	})
+	sum.SetInt64(0)
+	for _, v := range allValidators {
+		sum.Add(sum, v.value)
+		if sum.Cmp(target) > 0 {
+			return v.addr, nil
+		}
 	}
 
-	return validators, nil
+	return common.Address{}, fmt.Errorf("")
 }
 
 // getCurrentValidators get current validators

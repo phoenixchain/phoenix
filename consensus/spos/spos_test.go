@@ -2,6 +2,7 @@ package spos
 
 import (
 	"fmt"
+	"math/big"
 	"math/rand"
 	"testing"
 
@@ -143,4 +144,11 @@ func randomAddress() common.Address {
 	addrBytes := make([]byte, 20)
 	rand.Read(addrBytes)
 	return common.BytesToAddress(addrBytes)
+}
+
+func TestBigMath(t *testing.T) {
+	a := big.NewInt(12312)
+	b := big.NewInt(32)
+	m := new(big.Int).Mod(a, b)
+	t.Logf("%s", m)
 }

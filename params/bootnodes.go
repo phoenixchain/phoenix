@@ -66,7 +66,7 @@ var CalaverasBootnodes = []string{
 }
 
 var V5Bootnodes = []string{
-	"enr:-J24QDybZqJl-DYXmXsHgYvgQz7Eukis2rdYt_XyjVibnrOuUoT3f6ZPXibJxYIXpdeMnN_eg4gMwQDNiWsU82Nn7xgCg2V0aMfGhBNJVcqAgmlkgnY0gmlwhC0gjO-Jc2VjcDI1NmsxoQJ9uMdnRdJpZmBmCnRqII6t5YPnJ_yKtZSXrBmVyINRsoRzbmFwwIN0Y3CCdl-DdWRwgnZf",
+	"enr:-J24QEB044_z5CnQBlUgQ5wZ29MGnRRENKRjU6OmvTAxObphF1H65pTTipMVGoNLgYcc6_wYO4MVqknNXSPuxDzCTXgJg2V0aMfGhBNJVcqAgmlkgnY0gmlwhC0gjO-Jc2VjcDI1NmsxoQJ9uMdnRdJpZmBmCnRqII6t5YPnJ_yKtZSXrBmVyINRsoRzbmFwwIN0Y3CCdl-DdWRwgnZf",
 }
 
 const dnsPrefix = "enrtree://AKA3AM6LPBYEUDMVNU3BSVQJ5AD45Y7YPOHJLEF6W26QOE4VTUDPE@"

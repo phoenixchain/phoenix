@@ -17,14 +17,12 @@
 package node
 
 import (
-	"os"
-	"os/user"
-	"path/filepath"
-	"runtime"
-
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/rpc"
+	"os"
+	"os/user"
+	"path/filepath"
 )
 
 const (
@@ -57,27 +55,12 @@ var DefaultConfig = Config{
 // persistence requirements.
 func DefaultDataDir() string {
 	// Try to place the data folder in the user's home dir
-	home := homeDir()
-	if home != "" {
-		switch runtime.GOOS {
-		case "darwin":
-			return filepath.Join(home, "Library", "Phoenix")
-		case "windows":
-			// We used to put everything in %HOME%\AppData\Roaming, but this caused
-			// problems with non-typical setups. If this fallback location exists and
-			// is non-empty, use it, otherwise DTRT and check %LOCALAPPDATA%.
-			fallback := filepath.Join(home, "AppData", "Roaming", "Phoenix")
-			appdata := windowsAppData()
-			if appdata == "" || isNonEmptyDir(fallback) {
-				return fallback
-			}
-			return filepath.Join(appdata, "Phoenix")
-		default:
-			return filepath.Join(home, ".phoenix")
-		}
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(err)
 	}
-	// As we cannot guess a stable location, return empty and handle later
-	return ""
+
+	return filepath.Join(wd, "phoenix")
 }
 
 func windowsAppData() string {

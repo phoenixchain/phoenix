@@ -21,9 +21,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"io"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
@@ -167,6 +169,8 @@ type Poseidon struct {
 	lock   sync.RWMutex   // Protects the signer fields
 
 	ethAPI *ethapi.PublicBlockChainAPI
+
+	validatorSetABI abi.ABI
 }
 
 // New creates a Spos proof-of-authority consensus engine with the initial
@@ -178,10 +182,15 @@ func New(config *params.PoseidonConfig, db ethdb.Database) *Poseidon {
 	// Allocate the snapshot caches and create the engine
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
+	vABI, err := abi.JSON(strings.NewReader(validatorSetABI))
+	if err != nil {
+		panic(err)
+	}
 	return &Poseidon{
-		config:     &conf,
-		db:         db,
-		signatures: signatures,
+		config:          &conf,
+		db:              db,
+		signatures:      signatures,
+		validatorSetABI: vABI,
 	}
 }
 

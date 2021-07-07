@@ -259,3 +259,11 @@ func (api *ExternalSigner) pingVersion() (string, error) {
 	}
 	return v, nil
 }
+
+func (api *ExternalSigner) VrfProve(alpha []byte) (beta, pi []byte, err error) {
+	return nil, nil, fmt.Errorf("VRF is not supported")
+}
+
+func (api *ExternalSigner) VrfVerify(alpha, pi []byte) (beta []byte, err error) {
+	return nil, fmt.Errorf("VRF is not supported")
+}

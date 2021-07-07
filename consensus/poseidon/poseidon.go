@@ -19,12 +19,16 @@ package poseidon
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/crypto/vrf"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"io"
+	"math"
 	"math/big"
 	"strings"
 	"sync"
@@ -499,6 +503,14 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 		log.Info("Sealing paused, waiting for transactions")
 		return nil
 	}
+
+	info, err := c.GetValidatorInfo(c.signer)
+	if err != nil {
+		return err
+	}
+	perProposerHeight := info.PerProposerHeight.Uint64()
+	c.Heartbeat(header, perProposerHeight)
+
 	// Don't hold the signer fields for the entire sealing procedure
 	c.lock.RLock()
 	signer, signFn := c.signer, c.signFn
@@ -656,4 +668,42 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 	if err := rlp.Encode(w, enc); err != nil {
 		panic("can't encode: " + err.Error())
 	}
+}
+
+func (c *Poseidon) Heartbeat(header *types.Header, perProposerHeight uint64) error {
+	number := header.Number.Uint64()
+	if (number - perProposerHeight) < 100 {
+		return nil
+	}
+
+	// block
+	blockHash := header.ParentHash()
+	blockNr := rpc.BlockNumberOrHashWithHash(blockHash, false)
+
+	// method
+	method := "slash"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // cancel when we are finished consuming integers
+
+	data, err := c.validatorSetABI.Pack(method)
+	if err != nil {
+		log.Error("Unable to pack tx for slash", "error", err)
+		return err
+	}
+	// call
+	msgData := (hexutil.Bytes)(data)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
+	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	result, err := c.ethAPI.Call(ctx, ethapi.CallArgs{
+		Gas:  &gas,
+		To:   &toAddress,
+		Data: &msgData,
+	}, blockNr, nil)
+	if err != nil {
+		return err
+	}
+	_ = result
+
+	return nil
 }

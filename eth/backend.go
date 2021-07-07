@@ -20,6 +20,7 @@ package eth
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/consensus/poseidon"
 	"math/big"
 	"runtime"
 	"sync"
@@ -474,6 +475,14 @@ func (s *Ethereum) StartMining(threads int) error {
 				return fmt.Errorf("signer missing: %v", err)
 			}
 			clique.Authorize(eb, wallet.SignData)
+		}
+		if poseidon, ok := s.engine.(*poseidon.Poseidon); ok {
+			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
+			if wallet == nil || err != nil {
+				log.Error("Etherbase account unavailable locally", "err", err)
+				return fmt.Errorf("signer missing: %v", err)
+			}
+			poseidon.Authorize(eb, wallet.SignData, wallet.VrfProve)
 		}
 		// If mining is started, we can disable the transaction rejection mechanism
 		// introduced to speed sync times.

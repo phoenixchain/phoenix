@@ -19,7 +19,7 @@ const validatorSetABI = `
 			{
 				"indexed": false,
 				"internalType": "uint256",
-				"name": "requiredDeposit",
+				"name": "requiredRegister",
 				"type": "uint256"
 			},
 			{
@@ -73,7 +73,33 @@ const validatorSetABI = `
 	},
 	{
 		"inputs": [],
-		"name": "INIT_REQUIRED_DEPOSIT",
+		"name": "INIT_PROPOER_HEIGHT",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "INIT_REQUIRED_REGISTER",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "MINSUPPLY",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -129,7 +155,7 @@ const validatorSetABI = `
 		"outputs": [
 			{
 				"internalType": "uint256",
-				"name": "",
+				"name": "committeeSupply",
 				"type": "uint256"
 			}
 		],
@@ -145,6 +171,25 @@ const validatorSetABI = `
 			}
 		],
 		"name": "getProposerCount",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_validator",
+				"type": "address"
+			}
+		],
+		"name": "getSlashHeight",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -192,6 +237,11 @@ const validatorSetABI = `
 				"internalType": "uint256",
 				"name": "totalSupply",
 				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "perProposerHeight",
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -205,19 +255,6 @@ const validatorSetABI = `
 				"internalType": "address[]",
 				"name": "_validatorArrays",
 				"type": "address[]"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "governance",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
 			}
 		],
 		"stateMutability": "view",
@@ -277,30 +314,6 @@ const validatorSetABI = `
 	{
 		"inputs": [
 			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"name": "proposersMap",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "count",
-				"type": "uint256"
-			},
-			{
-				"internalType": "bool",
-				"name": "exist",
-				"type": "bool"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
 				"internalType": "string",
 				"name": "_name",
 				"type": "string"
@@ -309,19 +322,6 @@ const validatorSetABI = `
 		"name": "register",
 		"outputs": [],
 		"stateMutability": "payable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "requiredDeposit",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -338,16 +338,35 @@ const validatorSetABI = `
 		"type": "function"
 	},
 	{
+		"inputs": [],
+		"name": "requiredRegister",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
 		"inputs": [
 			{
 				"internalType": "address",
-				"name": "_governance",
+				"name": "",
 				"type": "address"
 			}
 		],
-		"name": "setGovernance",
-		"outputs": [],
-		"stateMutability": "nonpayable",
+		"name": "rewardValidator",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -371,19 +390,8 @@ const validatorSetABI = `
 		"type": "function"
 	},
 	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "_deposit",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_dues",
-				"type": "uint256"
-			}
-		],
-		"name": "updateParam",
+		"inputs": [],
+		"name": "updateValidatorSupply",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -447,7 +455,7 @@ const validatorSetABI = `
 			},
 			{
 				"internalType": "uint256",
-				"name": "deposit",
+				"name": "register",
 				"type": "uint256"
 			},
 			{
@@ -463,6 +471,11 @@ const validatorSetABI = `
 			{
 				"internalType": "uint256",
 				"name": "totalSupply",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "perProposerHeight",
 				"type": "uint256"
 			}
 		],

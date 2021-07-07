@@ -77,6 +77,9 @@ type Wallet interface {
 	// rather only contain the accounts explicitly pinned during account derivation.
 	Accounts() []Account
 
+	VrfProve(alpha []byte) (beta, pi []byte, err error)
+	VrfVerify(alpha, pi []byte) (beta []byte, err error)
+
 	// Contains returns whether an account is part of this particular wallet or not.
 	Contains(account Account) bool
 

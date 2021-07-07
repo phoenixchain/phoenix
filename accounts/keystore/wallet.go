@@ -17,6 +17,8 @@
 package keystore
 
 import (
+	"crypto/ecdsa"
+	"github.com/ethereum/go-ethereum/crypto/vrf"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum"
@@ -147,4 +149,35 @@ func (w *keystoreWallet) SignTxWithPassphrase(account accounts.Account, passphra
 	}
 	// Account seems valid, request the keystore to sign
 	return w.keystore.SignTxWithPassphrase(account, passphrase, tx, chainID)
+}
+
+func (w *keystoreWallet) getPrivateKey(account accounts.Account) (*ecdsa.PrivateKey, error) {
+	w.keystore.mu.RLock()
+	defer w.keystore.mu.RUnlock()
+
+	if unlockedKey, ok := w.keystore.unlocked[account.Address]; ok {
+		return unlockedKey.PrivateKey, nil
+	}
+	return nil, ErrLocked
+}
+
+func (w *keystoreWallet) VrfProve(alpha []byte) (beta, pi []byte, err error) {
+	privateKey, err := w.getPrivateKey(w.account)
+	if err != nil {
+		return nil, nil, err
+	}
+	return vrf.Prove(privateKey, alpha)
+}
+
+func (w *keystoreWallet) VrfVerify(alpha, pi []byte) (beta []byte, err error) {
+	privateKey, err := w.getPrivateKey(w.account)
+	if err != nil {
+		return nil, err
+	}
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		return nil, accounts.ErrUnknownAccount
+	}
+	return vrf.Verify(publicKeyECDSA, alpha, pi)
 }

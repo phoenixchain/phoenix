@@ -58,6 +58,10 @@ var (
 		accounts.MimetypeClique,
 		0x02,
 	}
+	ApplicationPoseidon = SigFormat{
+		accounts.MimetypePoseidon,
+		0x03,
+	}
 	TextPlain = SigFormat{
 		accounts.MimetypeTextPlain,
 		0x45,
@@ -258,6 +262,8 @@ func (api *SignerAPI) determineSignatureFormat(ctx context.Context, contentType 
 		// Clique uses V on the form 0 or 1
 		useEthereumV = false
 		req = &SignDataRequest{ContentType: mediaType, Rawdata: cliqueRlp, Messages: messages, Hash: sighash}
+	case ApplicationPoseidon.Mime:
+		//	TODO
 	default: // also case TextPlain.Mime:
 		// Calculates an Ethereum ECDSA signature for:
 		// hash = keccak256("\x19${byteVersion}Ethereum Signed Message:\n${message length}${message}")

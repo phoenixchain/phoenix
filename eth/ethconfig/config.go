@@ -18,6 +18,7 @@
 package ethconfig
 
 import (
+	"github.com/ethereum/go-ethereum/consensus/poseidon"
 	"math/big"
 	"os"
 	"os/user"
@@ -210,6 +211,9 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 	// If proof-of-authority is requested, set it up
 	if chainConfig.Clique != nil {
 		return clique.New(chainConfig.Clique, db)
+	}
+	if chainConfig.Poseidon != nil {
+		return poseidon.New(chainConfig.Poseidon, db)
 	}
 	// Otherwise assume proof-of-work
 	switch config.PowMode {

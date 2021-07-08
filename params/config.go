@@ -32,6 +32,8 @@ var (
 	RinkebyGenesisHash   = common.HexToHash("0x6341fd3daf94b748c72ced5a5b26028f2474f5f00d824504e4fa37a75767e177")
 	GoerliGenesisHash    = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
 	CalaverasGenesisHash = common.HexToHash("0xeb9233d066c275efcdfed8037f4fc082770176aefdbcb7691c71da412a5670f2")
+
+	PhoenixGenesisHash = common.HexToHash("PhoenixGenesisHash TODO") // TODO
 )
 
 // TrustedCheckpoints associates each known checkpoint with the genesis hash of
@@ -351,6 +353,7 @@ type ChainConfig struct {
 	BerlinBlock         *big.Int `json:"berlinBlock,omitempty"`         // Berlin switch block (nil = no fork, 0 = already on berlin)
 	LondonBlock         *big.Int `json:"londonBlock,omitempty"`         // London switch block (nil = no fork, 0 = already on london)
 	SposBlock           *big.Int `json:"sposBlock,omitempty"`
+	PoseidonBlock       *big.Int `json:"poseidonBlock,omitempty"`
 
 	EWASMBlock    *big.Int `json:"ewasmBlock,omitempty"`    // EWASM switch block (nil = no fork, 0 = already activated)
 	CatalystBlock *big.Int `json:"catalystBlock,omitempty"` // Catalyst switch block (nil = no fork, 0 = already on catalyst)
@@ -489,9 +492,14 @@ func (c *ChainConfig) IsSpos(num *big.Int) bool {
 	return isForked(c.SposBlock, num)
 }
 
-func (c *ChainConfig) IsRamanujan(num *big.Int) bool {
-	return c.IsSpos(num)
+// IsPoseidon returns whether num is either equal to the pos fork block or greater.
+func (c *ChainConfig) IsPoseidon(num *big.Int) bool {
+	return isForked(c.PoseidonBlock, num)
 }
+
+//func (c *ChainConfig) IsRamanujan(num *big.Int) bool {
+//	return c.IsSpos(num)
+//}
 
 // IsCatalyst returns whether num is either equal to the Merge fork block or greater.
 func (c *ChainConfig) IsCatalyst(num *big.Int) bool {

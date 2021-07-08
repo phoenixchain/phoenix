@@ -22,9 +22,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto/vrf"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"io"
@@ -168,6 +171,7 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) ([]byte, common.Add
 // Spos is the proof-of-authority consensus engine proposed to support the
 // Ethereum testnet following the Ropsten attacks.
 type Poseidon struct {
+	chainConfig *params.ChainConfig  // Chain config
 	config *params.PoseidonConfig // Consensus engine configuration parameters
 	db     ethdb.Database         // Database to store and retrieve snapshot checkpoints
 
@@ -706,4 +710,150 @@ func (c *Poseidon) Heartbeat(header *types.Header, perProposerHeight uint64) err
 	_ = result
 
 	return nil
+}
+
+// init contract
+func (p *Poseidon) initContract(state *state.StateDB, header *types.Header, chain core.ChainContext,
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
+	// method
+	method := "init"
+	// contracts
+	contracts := []string{
+		systemcontracts.ValidatorContract,
+		systemcontracts.SlashContract,
+		systemcontracts.LightClientContract,
+		systemcontracts.RelayerHubContract,
+		systemcontracts.TokenHubContract,
+		systemcontracts.RelayerIncentivizeContract,
+		systemcontracts.CrossChainContract,
+	}
+	// get packed data
+	data, err := p.validatorSetABI.Pack(method)
+	if err != nil {
+		log.Error("Unable to pack tx for init validator set", "error", err)
+		return err
+	}
+	for _, c := range contracts {
+		msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), data, common.Big0)
+		// apply message
+		log.Trace("init contract", "block hash", header.Hash(), "contract", c)
+		err = p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// get system message
+func (p *Poseidon) getSystemMessage(from, toAddress common.Address, data []byte, value *big.Int) callmsg {
+	return callmsg{
+		ethereum.CallMsg{
+			From:     from,
+			Gas:      math.MaxUint64 / 2,
+			GasPrice: big.NewInt(0),
+			Value:    value,
+			To:       &toAddress,
+			Data:     data,
+		},
+	}
+}
+
+func (p *Poseidon) applyTransaction(
+	msg callmsg,
+	state *state.StateDB,
+	header *types.Header,
+	chainContext core.ChainContext,
+	txs *[]*types.Transaction, receipts *[]*types.Receipt,
+	receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool,
+) (err error) {
+	nonce := state.GetNonce(msg.From())
+	expectedTx := types.NewTransaction(nonce, *msg.To(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.Data())
+	expectedHash := p.signer.Hash(expectedTx)
+
+	if msg.From() == p.signer && mining {
+		//TODO
+		//expectedTx, err = p.signTxFn(accounts.Account{Address: msg.From()}, expectedTx, p.chainConfig.ChainID)
+		//if err != nil {
+		//	return err
+		//}
+	} else {
+		if receivedTxs == nil || len(*receivedTxs) == 0 || (*receivedTxs)[0] == nil {
+			return errors.New("supposed to get a actual transaction, but get none")
+		}
+		actualTx := (*receivedTxs)[0]
+		if !bytes.Equal(p.signer.Hash(actualTx).Bytes(), expectedHash.Bytes()) {
+			return fmt.Errorf("expected tx hash %v, get %v", expectedHash.String(), actualTx.Hash().String())
+		}
+		expectedTx = actualTx
+		// move to next
+		*receivedTxs = (*receivedTxs)[1:]
+	}
+	state.Prepare(expectedTx.Hash(), common.Hash{}, len(*txs))
+	gasUsed, err := applyMessage(msg, state, header, p.chainConfig, chainContext)
+	if err != nil {
+		return err
+	}
+	*txs = append(*txs, expectedTx)
+	var root []byte
+	if p.chainConfig.IsByzantium(header.Number) {
+		state.Finalise(true)
+	} else {
+		root = state.IntermediateRoot(p.chainConfig.IsEIP158(header.Number)).Bytes()
+	}
+	*usedGas += gasUsed
+	receipt := types.NewReceipt(root, false, *usedGas)
+	receipt.TxHash = expectedTx.Hash()
+	receipt.GasUsed = gasUsed
+
+	// Set the receipt logs and create a bloom for filtering
+	receipt.Logs = state.GetLogs(expectedTx.Hash())
+	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+	receipt.BlockHash = state.BlockHash()
+	receipt.BlockNumber = header.Number
+	receipt.TransactionIndex = uint(state.TxIndex())
+	*receipts = append(*receipts, receipt)
+	state.SetNonce(msg.From(), nonce+1)
+	return nil
+}
+
+// callmsg implements core.Message to allow passing it as a transaction simulator.
+type callmsg struct {
+	ethereum.CallMsg
+}
+
+func (m callmsg) From() common.Address { return m.CallMsg.From }
+func (m callmsg) Nonce() uint64        { return 0 }
+func (m callmsg) CheckNonce() bool     { return false }
+func (m callmsg) To() *common.Address  { return m.CallMsg.To }
+func (m callmsg) GasPrice() *big.Int   { return m.CallMsg.GasPrice }
+func (m callmsg) Gas() uint64          { return m.CallMsg.Gas }
+func (m callmsg) Value() *big.Int      { return m.CallMsg.Value }
+func (m callmsg) Data() []byte         { return m.CallMsg.Data }
+
+// apply message
+func applyMessage(
+	msg callmsg,
+	state *state.StateDB,
+	header *types.Header,
+	chainConfig *params.ChainConfig,
+	chainContext core.ChainContext,
+) (uint64, error) {
+	// Create a new context to be used in the EVM environment
+	context := core.NewEVMBlockContext(header, chainContext, nil)
+	// Create a new environment which holds all relevant information
+	// about the transaction and calling mechanisms.
+	vmenv := vm.NewEVM(context, vm.TxContext{Origin: msg.From(), GasPrice: big.NewInt(0)}, state, chainConfig, vm.Config{})
+	// Apply the transaction to the current state (included in the env)
+	ret, returnGas, err := vmenv.Call(
+		vm.AccountRef(msg.From()),
+		*msg.To(),
+		msg.Data(),
+		msg.Gas(),
+		msg.Value(),
+	)
+	if err != nil {
+		log.Error("apply message failed", "msg", string(ret), "err", err)
+	}
+	return msg.Gas() - returnGas, err
 }

@@ -719,13 +719,15 @@ func (p *Poseidon) initContract(state *state.StateDB, header *types.Header, chai
 	method := "init"
 	// contracts
 	contracts := []string{
-		systemcontracts.ValidatorContract,
-		systemcontracts.SlashContract,
-		systemcontracts.LightClientContract,
-		systemcontracts.RelayerHubContract,
-		systemcontracts.TokenHubContract,
-		systemcontracts.RelayerIncentivizeContract,
-		systemcontracts.CrossChainContract,
+		//systemcontracts.ValidatorContract,
+		//systemcontracts.SlashContract,
+		//systemcontracts.LightClientContract,
+		//systemcontracts.RelayerHubContract,
+		//systemcontracts.TokenHubContract,
+		//systemcontracts.RelayerIncentivizeContract,
+		//systemcontracts.CrossChainContract,
+		systemcontracts.ValidatorFactoryContract,
+		systemcontracts.ValidatorHubContract,
 	}
 	// get packed data
 	data, err := p.validatorSetABI.Pack(method)

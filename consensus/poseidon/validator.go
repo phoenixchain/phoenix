@@ -35,7 +35,7 @@ func (p *Poseidon) IsValidator(validator common.Address) (bool, error) {
 	}
 	// call
 	msgData := (hexutil.Bytes)(data)
-	toAddress := common.HexToAddress(systemcontracts.ValidatorContract)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
@@ -68,7 +68,7 @@ func (p *Poseidon) GetValidatorInfo(validator common.Address) (*ValidatorInfo, e
 	}
 	// call
 	msgData := (hexutil.Bytes)(data)
-	toAddress := common.HexToAddress(systemcontracts.ValidatorContract)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
@@ -101,7 +101,7 @@ func (p *Poseidon) IsProposer(validator common.Address) (bool, error) {
 	}
 	// call
 	msgData := (hexutil.Bytes)(data)
-	toAddress := common.HexToAddress(systemcontracts.ValidatorContract)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
@@ -134,7 +134,7 @@ func (p *Poseidon) GetCommitteeSupply() (*big.Int, error) {
 	}
 	// call
 	msgData := (hexutil.Bytes)(data)
-	toAddress := common.HexToAddress(systemcontracts.ValidatorContract)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,

@@ -70,8 +70,11 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		MuirGlacierBlock:    big.NewInt(0),
 		BerlinBlock:         big.NewInt(0),
-		SposBlock:           big.NewInt(100000),
-		Ethash:              new(EthashConfig),
+		SposBlock:           big.NewInt(0),
+		Poseidon: &PoseidonConfig{
+			Period: 3,
+			//Epoch:  200,
+		},
 	}
 
 	// MainnetChainConfig is the chain parameters to run a node on the main network.

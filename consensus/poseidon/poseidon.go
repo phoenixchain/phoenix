@@ -171,9 +171,9 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) ([]byte, common.Add
 // Spos is the proof-of-authority consensus engine proposed to support the
 // Ethereum testnet following the Ropsten attacks.
 type Poseidon struct {
-	chainConfig *params.ChainConfig  // Chain config
-	config *params.PoseidonConfig // Consensus engine configuration parameters
-	db     ethdb.Database         // Database to store and retrieve snapshot checkpoints
+	chainConfig *params.ChainConfig    // Chain config
+	config      *params.PoseidonConfig // Consensus engine configuration parameters
+	db          ethdb.Database         // Database to store and retrieve snapshot checkpoints
 
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
@@ -190,9 +190,13 @@ type Poseidon struct {
 
 // New creates a Spos proof-of-authority consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(config *params.PoseidonConfig, db ethdb.Database) *Poseidon {
+func New(
+	chainConfig *params.ChainConfig,
+	db ethdb.Database,
+	ethAPI *ethapi.PublicBlockChainAPI,
+) *Poseidon {
 	// Set any missing consensus parameters to their defaults
-	conf := *config
+	conf := chainConfig.Poseidon
 
 	// Allocate the snapshot caches and create the engine
 	signatures, _ := lru.NewARC(inmemorySignatures)
@@ -202,10 +206,12 @@ func New(config *params.PoseidonConfig, db ethdb.Database) *Poseidon {
 		panic(err)
 	}
 	return &Poseidon{
-		config:          &conf,
+		config:          conf,
 		db:              db,
 		signatures:      signatures,
 		validatorSetABI: vABI,
+		ethAPI:          ethAPI,
+		signer:          types.NewEIP155Signer(chainConfig.ChainID),
 	}
 }
 
@@ -691,7 +697,7 @@ func (c *Poseidon) Heartbeat(header *types.Header, perProposerHeight uint64) err
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // cancel when we are finished consuming integers
 
-	data, err := c.validatorSetABI.Pack(method)
+	data, err := c.validatorSetABI.Pack(method, c.val)
 	if err != nil {
 		log.Error("Unable to pack tx for slash", "error", err)
 		return err

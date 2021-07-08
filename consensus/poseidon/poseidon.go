@@ -178,7 +178,8 @@ type Poseidon struct {
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
 	vrfFn  VrfProveFn
-	signer common.Address // Ethereum address of the signing key
+	signer types.Signer
+	val    common.Address // Ethereum address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
 	lock   sync.RWMutex   // Protects the signer fields
 
@@ -399,7 +400,7 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	if isValidator, err := c.IsValidator(c.signer); err != nil || isValidator == false {
+	if isValidator, err := c.IsValidator(c.val); err != nil || isValidator == false {
 		return err
 	}
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
@@ -436,7 +437,7 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 
 	header.Extra = append(header.Extra, make([]byte, extraSeal)...)
 
-	info, err := c.GetValidatorInfo(c.signer)
+	info, err := c.GetValidatorInfo(c.val)
 	if err != nil {
 		return err
 	}
@@ -475,11 +476,11 @@ func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 
 // Authorize injects a private key into the consensus engine to mint new blocks
 // with.
-func (c *Poseidon) Authorize(signer common.Address, signFn SignerFn, vrfFn VrfProveFn) {
+func (c *Poseidon) Authorize(val common.Address, signFn SignerFn, vrfFn VrfProveFn) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.signer = signer
+	c.val = val
 	c.signFn = signFn
 	c.vrfFn = vrfFn
 }
@@ -508,7 +509,7 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 		return nil
 	}
 
-	info, err := c.GetValidatorInfo(c.signer)
+	info, err := c.GetValidatorInfo(c.val)
 	if err != nil {
 		return err
 	}
@@ -517,7 +518,7 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 
 	// Don't hold the signer fields for the entire sealing procedure
 	c.lock.RLock()
-	signer, signFn := c.signer, c.signFn
+	signer, signFn := c.val, c.signFn
 	c.lock.RUnlock()
 
 	// Sweet, the protocol permits us to sign the block, wait for our time
@@ -558,7 +559,7 @@ func (c *Poseidon) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64
 	if header != nil {
 		nonce = header.Nonce
 	}
-	info, err := c.GetValidatorInfo(c.signer)
+	info, err := c.GetValidatorInfo(c.val)
 	if err != nil {
 		info = &ValidatorInfo{
 			PerProposerHeight: big.NewInt(0),
@@ -681,7 +682,7 @@ func (c *Poseidon) Heartbeat(header *types.Header, perProposerHeight uint64) err
 	}
 
 	// block
-	blockHash := header.ParentHash()
+	blockHash := header.ParentHash
 	blockNr := rpc.BlockNumberOrHashWithHash(blockHash, false)
 
 	// method
@@ -699,7 +700,7 @@ func (c *Poseidon) Heartbeat(header *types.Header, perProposerHeight uint64) err
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err := c.ethAPI.Call(ctx, ethapi.CallArgs{
+	result, err := c.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
 		To:   &toAddress,
 		Data: &msgData,
@@ -773,7 +774,7 @@ func (p *Poseidon) applyTransaction(
 	expectedTx := types.NewTransaction(nonce, *msg.To(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.Data())
 	expectedHash := p.signer.Hash(expectedTx)
 
-	if msg.From() == p.signer && mining {
+	if msg.From() == p.val && mining {
 		//TODO
 		//expectedTx, err = p.signTxFn(accounts.Account{Address: msg.From()}, expectedTx, p.chainConfig.ChainID)
 		//if err != nil {

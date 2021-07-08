@@ -27,13 +27,13 @@ import (
 
 // Genesis hashes to enforce below configs on.
 var (
-	MainnetGenesisHash   = common.HexToHash("0x57abea5803cd08975a8c554e1e5d127ad3fd6d73768638a72df2b630cb45d10a")
+	MainnetGenesisHash   = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
 	RopstenGenesisHash   = common.HexToHash("0x41941023680923e0fe4d74a34bdac8141f2540e3ae90623718e47d66d1ca4a2d")
 	RinkebyGenesisHash   = common.HexToHash("0x6341fd3daf94b748c72ced5a5b26028f2474f5f00d824504e4fa37a75767e177")
 	GoerliGenesisHash    = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
 	CalaverasGenesisHash = common.HexToHash("0xeb9233d066c275efcdfed8037f4fc082770176aefdbcb7691c71da412a5670f2")
 
-	PhoenixGenesisHash = common.HexToHash("PhoenixGenesisHash TODO") // TODO
+	PhoenixGenesisHash = common.HexToHash("0x57abea5803cd08975a8c554e1e5d127ad3fd6d73768638a72df2b630cb45d10a")
 )
 
 // TrustedCheckpoints associates each known checkpoint with the genesis hash of
@@ -70,28 +70,28 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		MuirGlacierBlock:    big.NewInt(0),
 		BerlinBlock:         big.NewInt(0),
+		SposBlock:           big.NewInt(100000),
 		Ethash:              new(EthashConfig),
 	}
 
 	// MainnetChainConfig is the chain parameters to run a node on the main network.
-	MainnetChainConfig = PhoenixChainConfig
-	//MainnetChainConfig = &ChainConfig{
-	//	ChainID:             big.NewInt(1),
-	//	HomesteadBlock:      big.NewInt(1_150_000),
-	//	DAOForkBlock:        big.NewInt(1_920_000),
-	//	DAOForkSupport:      true,
-	//	EIP150Block:         big.NewInt(2_463_000),
-	//	EIP150Hash:          common.HexToHash("0x2086799aeebeae135c246c65021c82b4e15a2c451340993aacfd2751886514f0"),
-	//	EIP155Block:         big.NewInt(2_675_000),
-	//	EIP158Block:         big.NewInt(2_675_000),
-	//	ByzantiumBlock:      big.NewInt(4_370_000),
-	//	ConstantinopleBlock: big.NewInt(7_280_000),
-	//	PetersburgBlock:     big.NewInt(7_280_000),
-	//	IstanbulBlock:       big.NewInt(9_069_000),
-	//	MuirGlacierBlock:    big.NewInt(9_200_000),
-	//	BerlinBlock:         big.NewInt(12_244_000),
-	//	Ethash:              new(EthashConfig),
-	//}
+	MainnetChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(1),
+		HomesteadBlock:      big.NewInt(1_150_000),
+		DAOForkBlock:        big.NewInt(1_920_000),
+		DAOForkSupport:      true,
+		EIP150Block:         big.NewInt(2_463_000),
+		EIP150Hash:          common.HexToHash("0x2086799aeebeae135c246c65021c82b4e15a2c451340993aacfd2751886514f0"),
+		EIP155Block:         big.NewInt(2_675_000),
+		EIP158Block:         big.NewInt(2_675_000),
+		ByzantiumBlock:      big.NewInt(4_370_000),
+		ConstantinopleBlock: big.NewInt(7_280_000),
+		PetersburgBlock:     big.NewInt(7_280_000),
+		IstanbulBlock:       big.NewInt(9_069_000),
+		MuirGlacierBlock:    big.NewInt(9_200_000),
+		BerlinBlock:         big.NewInt(12_244_000),
+		Ethash:              new(EthashConfig),
+	}
 
 	// MainnetTrustedCheckpoint contains the light client trusted checkpoint for the main network.
 	MainnetTrustedCheckpoint = &TrustedCheckpoint{

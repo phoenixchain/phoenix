@@ -217,7 +217,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	// Special case: don't change the existing config of a non-mainnet chain if no new
 	// config is supplied. These chains would get AllProtocolChanges (and a compat error)
 	// if we just continued here.
-	if genesis == nil && stored != params.MainnetGenesisHash {
+	if genesis == nil && stored != params.MainnetGenesisHash &&	stored != params.PhoenixGenesisHash {
 		return storedcfg, stored, nil
 	}
 	// Check config compatibility and write the config. Compatibility errors
@@ -248,6 +248,8 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 		return params.GoerliChainConfig
 	case ghash == params.CalaverasGenesisHash:
 		return params.CalaverasChainConfig
+	case ghash == params.PhoenixGenesisHash:
+		return params.PhoenixChainConfig
 	default:
 		return params.AllEthashProtocolChanges
 	}

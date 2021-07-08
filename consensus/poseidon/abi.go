@@ -3,13 +3,7 @@ package poseidon
 const validatorSetABI = `
 [
 	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "_factory",
-				"type": "address"
-			}
-		],
+		"inputs": [],
 		"stateMutability": "nonpayable",
 		"type": "constructor"
 	},
@@ -271,6 +265,13 @@ const validatorSetABI = `
 			}
 		],
 		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "init",
+		"outputs": [],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{

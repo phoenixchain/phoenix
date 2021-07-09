@@ -57,7 +57,7 @@ import (
 const (
 	inmemorySignatures = 4096 // Number of recent block signatures to keep in memory
 
-	vrfExpectedSize = 3
+	vrfExpectedSize = 3.0
 )
 
 // Spos proof-of-authority protocol constants.
@@ -206,6 +206,7 @@ func New(
 		panic(err)
 	}
 	return &Poseidon{
+		chainConfig:     chainConfig,
 		config:          conf,
 		db:              db,
 		signatures:      signatures,
@@ -398,7 +399,7 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 	if err != nil {
 		return err
 	}
-	if vrf.VerifySort(info.TotalSupply.Uint64(), committeeSupply.Uint64(), vrfExpectedSize, beta) == false {
+	if c.verifySort(info.TotalSupply.Uint64(), committeeSupply.Uint64(), header.Number, beta) == false {
 		return errUnauthorizedSigner
 	}
 	return nil
@@ -407,6 +408,9 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
+	if c.vrfFn == nil {
+		return errInvalidUncleHash
+	}
 	if isProposer, err := c.IsProposer(c.val); err != nil || isProposer == false {
 		return err
 	}
@@ -457,10 +461,18 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 	// Set the correct difficulty
 	header.Difficulty = calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.PerProposerHeight)
 
-	if vrf.VerifySort(info.TotalSupply.Uint64(), committeeSupply.Uint64(), vrfExpectedSize, beta) == false {
+	if c.verifySort(info.TotalSupply.Uint64(), committeeSupply.Uint64(), header.Number, beta) == false {
 		return errUnauthorizedSigner
 	}
 	return nil
+}
+
+func (c *Poseidon) verifySort(money uint64, totalMoney uint64, blockNumber *big.Int, vrfOutput []byte) bool {
+	expectedSize := vrfExpectedSize
+	if money == totalMoney {
+		expectedSize = 1
+	}
+	return vrf.VerifySort(money, totalMoney, expectedSize, vrfOutput)
 }
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
@@ -755,6 +767,7 @@ func (c *Poseidon) Heartbeat(header *types.Header, perProposerHeight uint64) err
 // init contract
 func (p *Poseidon) initContract(state *state.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
+	return nil
 	// method
 	method := "init"
 	// contracts
@@ -861,7 +874,7 @@ func (p *Poseidon) applyTransaction(
 
 // chain context
 type chainContext struct {
-	Chain  consensus.ChainHeaderReader
+	Chain    consensus.ChainHeaderReader
 	poseidon consensus.Engine
 }
 

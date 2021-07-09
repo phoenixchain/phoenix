@@ -46,12 +46,12 @@ func (p *Poseidon) IsValidator(validator common.Address) (bool, error) {
 		return false, err
 	}
 
-	out := false
+	out := new(bool)
 
-	if err := p.validatorSetABI.UnpackIntoInterface(&out, method, result); err != nil {
+	if err := p.validatorSetABI.UnpackIntoInterface(out, method, result); err != nil {
 		return false, err
 	}
-	return out, nil
+	return *out, nil
 }
 
 func (p *Poseidon) GetValidatorInfo(validator common.Address) (*ValidatorInfo, error) {
@@ -111,13 +111,12 @@ func (p *Poseidon) IsProposer(validator common.Address) (bool, error) {
 	if err != nil {
 		return false, err
 	}
+	out := new(bool)
 
-	out := false
-
-	if err := p.validatorSetABI.UnpackIntoInterface(&out, method, result); err != nil {
+	if err := p.validatorSetABI.UnpackIntoInterface(out, method, result); err != nil {
 		return false, err
 	}
-	return out, nil
+	return *out, nil
 }
 
 func (p *Poseidon) GetCommitteeSupply() (*big.Int, error) {
@@ -145,9 +144,9 @@ func (p *Poseidon) GetCommitteeSupply() (*big.Int, error) {
 		return nil, err
 	}
 
-	out := new(big.Int)
+	var out *big.Int
 
-	if err := p.validatorSetABI.UnpackIntoInterface(out, method, result); err != nil {
+	if err := p.validatorSetABI.UnpackIntoInterface(&out, method, result); err != nil {
 		return nil, err
 	}
 	return out, nil

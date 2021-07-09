@@ -507,6 +507,8 @@ func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 		}
 	}
 
+	//TODO fill
+
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
 
@@ -530,7 +532,7 @@ func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 		}
 	}
 
-	//TODO
+	//TODO fill
 
 	// should not happen. Once happen, stop the node is better than broadcast the block
 	if header.GasLimit < header.GasUsed {

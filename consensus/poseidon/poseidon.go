@@ -215,11 +215,12 @@ func New(
 		panic(err)
 	}
 	return &Poseidon{
+		chainConfig:     chainConfig,
 		config:          conf,
 		db:              db,
+		ethAPI:          ethAPI,
 		signatures:      signatures,
 		validatorSetABI: vABI,
-		ethAPI:          ethAPI,
 		signer:          types.NewEIP155Signer(chainConfig.ChainID),
 	}
 }

@@ -458,17 +458,39 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
-func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) {
+func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
+	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
+	cx := chainContext{Chain: chain, poseidon: c}
+	if header.Number.Cmp(common.Big1) == 0 {
+		err := c.initContract(state, header, cx, txs, receipts, systemTxs, usedGas, false)
+		if err != nil {
+			log.Error("init contract failed")
+		}
+	}
+
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
+
+	return nil
 }
 
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
 func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
-	// Finalize block
-	c.Finalize(chain, header, state, txs, uncles)
+	cx := chainContext{Chain: chain, poseidon: c}
+	if txs == nil {
+		txs = make([]*types.Transaction, 0)
+	}
+	if receipts == nil {
+		receipts = make([]*types.Receipt, 0)
+	}
+	if header.Number.Cmp(common.Big1) == 0 {
+		err := c.initContract(state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
+		if err != nil {
+			log.Error("init contract failed")
+		}
+	}
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil)), nil
@@ -818,6 +840,20 @@ func (p *Poseidon) applyTransaction(
 	*receipts = append(*receipts, receipt)
 	state.SetNonce(msg.From(), nonce+1)
 	return nil
+}
+
+// chain context
+type chainContext struct {
+	Chain  consensus.ChainHeaderReader
+	poseidon consensus.Engine
+}
+
+func (c chainContext) Engine() consensus.Engine {
+	return c.poseidon
+}
+
+func (c chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
+	return c.Chain.GetHeader(hash, number)
 }
 
 // callmsg implements core.Message to allow passing it as a transaction simulator.

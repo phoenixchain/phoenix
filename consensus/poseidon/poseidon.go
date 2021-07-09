@@ -407,7 +407,7 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	if isValidator, err := c.IsValidator(c.val); err != nil || isValidator == false {
+	if isProposer, err := c.IsProposer(c.val); err != nil || isProposer == false {
 		return err
 	}
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)

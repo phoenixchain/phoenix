@@ -67,6 +67,11 @@ var (
 	extraVrf    = 81
 
 	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
+
+	systemContracts = map[common.Address]bool{
+		common.HexToAddress(systemcontracts.ValidatorFactoryContract): true,
+		common.HexToAddress(systemcontracts.ValidatorHubContract):     true,
+	}
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -143,6 +148,10 @@ var (
 type SignerFn func(signer accounts.Account, mimeType string, message []byte) ([]byte, error)
 type VrfProveFn func(alpha []byte) (beta, pi []byte, err error)
 
+func isToSystemContract(to common.Address) bool {
+	return systemContracts[to]
+}
+
 // ecrecover extracts the Ethereum account address from a signed header.
 func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) ([]byte, common.Address, error) {
 	// If the signature's already cached, return that
@@ -213,6 +222,28 @@ func New(
 		ethAPI:          ethAPI,
 		signer:          types.NewEIP155Signer(chainConfig.ChainID),
 	}
+}
+
+func (p *Poseidon) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
+	// deploy a contract
+	if tx.To() == nil {
+		return false, nil
+	}
+	sender, err := types.Sender(p.signer, tx)
+	if err != nil {
+		return false, errors.New("UnAuthorized transaction")
+	}
+	if sender == header.Coinbase && isToSystemContract(*tx.To()) && tx.GasPrice().Cmp(big.NewInt(0)) == 0 {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (p *Poseidon) IsSystemContract(to *common.Address) bool {
+	if to == nil {
+		return false
+	}
+	return isToSystemContract(*to)
 }
 
 // Author implements consensus.Engine, returning the Ethereum address recovered
@@ -861,7 +892,7 @@ func (p *Poseidon) applyTransaction(
 
 // chain context
 type chainContext struct {
-	Chain  consensus.ChainHeaderReader
+	Chain    consensus.ChainHeaderReader
 	poseidon consensus.Engine
 }
 

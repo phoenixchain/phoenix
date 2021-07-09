@@ -67,6 +67,11 @@ var (
 	extraVrf    = 81
 
 	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
+
+	systemContracts = map[common.Address]bool{
+		common.HexToAddress(systemcontracts.ValidatorFactoryContract): true,
+		common.HexToAddress(systemcontracts.ValidatorHubContract):     true,
+	}
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -143,6 +148,10 @@ var (
 type SignerFn func(signer accounts.Account, mimeType string, message []byte) ([]byte, error)
 type VrfProveFn func(alpha []byte) (beta, pi []byte, err error)
 
+func isToSystemContract(to common.Address) bool {
+	return systemContracts[to]
+}
+
 // ecrecover extracts the Ethereum account address from a signed header.
 func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) ([]byte, common.Address, error) {
 	// If the signature's already cached, return that
@@ -209,11 +218,33 @@ func New(
 		chainConfig:     chainConfig,
 		config:          conf,
 		db:              db,
+		ethAPI:          ethAPI,
 		signatures:      signatures,
 		validatorSetABI: vABI,
-		ethAPI:          ethAPI,
 		signer:          types.NewEIP155Signer(chainConfig.ChainID),
 	}
+}
+
+func (p *Poseidon) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
+	// deploy a contract
+	if tx.To() == nil {
+		return false, nil
+	}
+	sender, err := types.Sender(p.signer, tx)
+	if err != nil {
+		return false, errors.New("UnAuthorized transaction")
+	}
+	if sender == header.Coinbase && isToSystemContract(*tx.To()) && tx.GasPrice().Cmp(big.NewInt(0)) == 0 {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (p *Poseidon) IsSystemContract(to *common.Address) bool {
+	if to == nil {
+		return false
+	}
+	return isToSystemContract(*to)
 }
 
 // Author implements consensus.Engine, returning the Ethereum address recovered
@@ -488,6 +519,8 @@ func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 		}
 	}
 
+	//TODO fill
+
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
 
@@ -496,7 +529,8 @@ func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
-func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+		txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
 	cx := chainContext{Chain: chain, poseidon: c}
 	if txs == nil {
 		txs = make([]*types.Transaction, 0)
@@ -511,7 +545,7 @@ func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 		}
 	}
 
-	//TODO
+	//TODO fill
 
 	// should not happen. Once happen, stop the node is better than broadcast the block
 	if header.GasLimit < header.GasUsed {
@@ -521,7 +555,7 @@ func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 	header.UncleHash = types.CalcUncleHash(nil)
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil)), nil
+	return types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil)), receipts, nil
 }
 
 // Authorize injects a private key into the consensus engine to mint new blocks

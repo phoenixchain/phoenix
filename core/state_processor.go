@@ -74,10 +74,21 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	blockContext := NewEVMBlockContext(header, p.bc, nil)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
+
 	// Iterate over and process the individual transactions
+	spos, isPoSA := p.engine.(consensus.PoSA)
 	commonTxs := make([]*types.Transaction, 0, len(block.Transactions()))
 	systemTxs := make([]*types.Transaction, 0, 2)
 	for i, tx := range block.Transactions() {
+		if isPoSA {
+			if isSystemTx, err := spos.IsSystemTransaction(tx, block.Header()); err != nil {
+				return nil, nil, 0, err
+			} else if isSystemTx {
+				systemTxs = append(systemTxs, tx)
+				continue
+			}
+		}
+
 		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), header.BaseFee)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
@@ -87,14 +98,18 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
+
+		commonTxs = append(commonTxs, tx)
 		receipts = append(receipts, receipt)
-		allLogs = append(allLogs, receipt.Logs...)
 	}
 	// Finalize the block, applying any consensus engine specific extras (e.g. block rewards)
 	//p.engine.Finalize(p.bc, header, statedb, block.Transactions(), block.Uncles())
 	err := p.engine.Finalize(p.bc, header, statedb, &commonTxs, block.Uncles(), &receipts, &systemTxs, usedGas)
 	if err != nil {
 		return receipts, allLogs, *usedGas, err
+	}
+	for _, receipt := range receipts {
+		allLogs = append(allLogs, receipt.Logs...)
 	}
 
 	return receipts, allLogs, *usedGas, nil

@@ -144,7 +144,7 @@ type SignerFn func(signer accounts.Account, mimeType string, message []byte) ([]
 type VrfProveFn func(alpha []byte) (beta, pi []byte, err error)
 
 // ecrecover extracts the Ethereum account address from a signed header.
-func ecrecover(header *types.Header, sigcache *lru.ARCCache) ([]byte, common.Address, error) {
+func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) ([]byte, common.Address, error) {
 	// If the signature's already cached, return that
 	hash := header.Hash()
 	if address, known := sigcache.Get(hash); known {
@@ -157,7 +157,7 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache) ([]byte, common.Add
 	signature := header.Extra[len(header.Extra)-extraSeal:]
 
 	// Recover the public key and the Ethereum address
-	pubkey, err := crypto.Ecrecover(SealHash(header).Bytes(), signature)
+	pubkey, err := crypto.Ecrecover(SealHash(header, chainId).Bytes(), signature)
 	if err != nil {
 		return nil, common.Address{}, err
 	}
@@ -218,8 +218,9 @@ func New(
 // Author implements consensus.Engine, returning the Ethereum address recovered
 // from the signature in the header's extra-data section.
 func (c *Poseidon) Author(header *types.Header) (common.Address, error) {
-	_, signer, err := ecrecover(header, c.signatures)
-	return signer, err
+	//_, signer, err := ecrecover(header, c.signatures)
+	//return signer, err
+	return header.Coinbase, nil
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
@@ -365,7 +366,7 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 	}
 
 	// Resolve the authorization key and check against signers
-	pubkey, signer, err := ecrecover(header, c.signatures)
+	pubkey, signer, err := ecrecover(header, c.signatures, c.chainConfig.ChainID)
 	if err != nil {
 		return err
 	}
@@ -464,17 +465,48 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
-func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) {
+func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
+	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
+	cx := chainContext{Chain: chain, poseidon: c}
+	if header.Number.Cmp(common.Big1) == 0 {
+		err := c.initContract(state, header, cx, txs, receipts, systemTxs, usedGas, false)
+		if err != nil {
+			log.Error("init contract failed")
+		}
+	}
+
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
+
+	return nil
 }
 
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
 func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
-	// Finalize block
-	c.Finalize(chain, header, state, txs, uncles)
+	cx := chainContext{Chain: chain, poseidon: c}
+	if txs == nil {
+		txs = make([]*types.Transaction, 0)
+	}
+	if receipts == nil {
+		receipts = make([]*types.Receipt, 0)
+	}
+	if header.Number.Cmp(common.Big1) == 0 {
+		err := c.initContract(state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
+		if err != nil {
+			log.Error("init contract failed")
+		}
+	}
+
+	//TODO
+
+	// should not happen. Once happen, stop the node is better than broadcast the block
+	if header.GasLimit < header.GasUsed {
+		panic("Gas consumption of system txs exceed the gas limit")
+	}
+	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+	header.UncleHash = types.CalcUncleHash(nil)
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil)), nil
@@ -531,7 +563,7 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
 
 	// Sign all the things!
-	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypePoseidon, PoseidonRLP(header))
+	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypePoseidon, PoseidonRLP(header, c.chainConfig.ChainID))
 	if err != nil {
 		return err
 	}
@@ -548,7 +580,7 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 		select {
 		case results <- block.WithSeal(header):
 		default:
-			log.Warn("Sealing result is not read by miner", "sealhash", SealHash(header))
+			log.Warn("Sealing result is not read by miner", "sealhash", SealHash(header, c.chainConfig.ChainID))
 		}
 	}()
 
@@ -615,7 +647,7 @@ func calcDifficulty(
 
 // SealHash returns the hash of a block prior to it being sealed.
 func (c *Poseidon) SealHash(header *types.Header) common.Hash {
-	return SealHash(header)
+	return SealHash(header, c.chainConfig.ChainID)
 }
 
 // Close implements consensus.Engine. It's a noop for clique as there are no background threads.
@@ -635,9 +667,9 @@ func (c *Poseidon) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
-func SealHash(header *types.Header) (hash common.Hash) {
+func SealHash(header *types.Header, chainId *big.Int) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
-	encodeSigHeader(hasher, header)
+	encodeSigHeader(hasher, header, chainId)
 	hasher.Sum(hash[:0])
 	return hash
 }
@@ -649,14 +681,15 @@ func SealHash(header *types.Header) (hash common.Hash) {
 // Note, the method requires the extra data to be at least 65 bytes, otherwise it
 // panics. This is done to avoid accidentally using both forms (signature present
 // or not), which could be abused to produce different hashes for the same header.
-func PoseidonRLP(header *types.Header) []byte {
+func PoseidonRLP(header *types.Header, chainId *big.Int) []byte {
 	b := new(bytes.Buffer)
-	encodeSigHeader(b, header)
+	encodeSigHeader(b, header, chainId)
 	return b.Bytes()
 }
 
-func encodeSigHeader(w io.Writer, header *types.Header) {
+func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 	enc := []interface{}{
+		chainId,
 		header.ParentHash,
 		header.UncleHash,
 		header.Coinbase,
@@ -824,6 +857,20 @@ func (p *Poseidon) applyTransaction(
 	*receipts = append(*receipts, receipt)
 	state.SetNonce(msg.From(), nonce+1)
 	return nil
+}
+
+// chain context
+type chainContext struct {
+	Chain  consensus.ChainHeaderReader
+	poseidon consensus.Engine
+}
+
+func (c chainContext) Engine() consensus.Engine {
+	return c.poseidon
+}
+
+func (c chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
+	return c.Chain.GetHeader(hash, number)
 }
 
 // callmsg implements core.Message to allow passing it as a transaction simulator.

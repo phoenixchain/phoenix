@@ -70,6 +70,7 @@ var (
 		IstanbulBlock:       big.NewInt(0),
 		MuirGlacierBlock:    big.NewInt(0),
 		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
 		SposBlock:           big.NewInt(0),
 		Poseidon: &PoseidonConfig{
 			Period: 3,

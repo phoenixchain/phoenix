@@ -182,6 +182,7 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (
 type Poseidon struct {
 	chainConfig *params.ChainConfig    // Chain config
 	config      *params.PoseidonConfig // Consensus engine configuration parameters
+	genesisHash common.Hash
 	db          ethdb.Database         // Database to store and retrieve snapshot checkpoints
 
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
@@ -203,9 +204,10 @@ func New(
 	chainConfig *params.ChainConfig,
 	db ethdb.Database,
 	ethAPI *ethapi.PublicBlockChainAPI,
+	genesisHash common.Hash,
 ) *Poseidon {
 	// Set any missing consensus parameters to their defaults
-	conf := chainConfig.Poseidon
+	poseidonConfig := chainConfig.Poseidon
 
 	// Allocate the snapshot caches and create the engine
 	signatures, _ := lru.NewARC(inmemorySignatures)
@@ -216,7 +218,8 @@ func New(
 	}
 	return &Poseidon{
 		chainConfig:     chainConfig,
-		config:          conf,
+		config:          poseidonConfig,
+		genesisHash:     genesisHash,
 		db:              db,
 		ethAPI:          ethAPI,
 		signatures:      signatures,

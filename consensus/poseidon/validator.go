@@ -39,6 +39,7 @@ func (p *Poseidon) IsValidator(validator common.Address) (bool, error) {
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
+		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
 	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)
@@ -72,6 +73,7 @@ func (p *Poseidon) GetValidatorInfo(validator common.Address) (*ValidatorInfo, e
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
+		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
 	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)
@@ -105,6 +107,7 @@ func (p *Poseidon) IsProposer(validator common.Address) (bool, error) {
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
+		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
 	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)
@@ -137,6 +140,7 @@ func (p *Poseidon) GetCommitteeSupply() (*big.Int, error) {
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
+		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
 	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)

@@ -1902,6 +1902,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	if err != nil {
 		Fatalf("Can't create BlockChain: %v", err)
 	}
+	chain.Engine().VerifyHeader(chain, chain.CurrentHeader(), true)
 	return chain, chainDb
 }
 

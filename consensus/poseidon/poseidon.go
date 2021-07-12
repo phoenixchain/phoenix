@@ -58,6 +58,8 @@ const (
 	inmemorySignatures = 4096 // Number of recent block signatures to keep in memory
 
 	vrfExpectedSize = 3.0
+
+	validatorBytesLength = common.AddressLength
 )
 
 // Spos proof-of-authority protocol constants.
@@ -142,6 +144,24 @@ var (
 	// errRecentlySigned is returned if a header is signed by an authorized entity
 	// that already signed a header recently, thus is temporarily not allowed to.
 	errRecentlySigned = errors.New("recently signed")
+
+	// errOutOfRangeChain is returned if an authorization list is attempted to
+	// be modified via out-of-range or non-contiguous headers.
+	errOutOfRangeChain = errors.New("out of range or non-contiguous chain")
+
+	// errBlockHashInconsistent is returned if an authorization list is attempted to
+	// insert an inconsistent block.
+	errBlockHashInconsistent = errors.New("the block hash is inconsistent")
+
+	// errUnauthorizedValidator is returned if a header is signed by a non-authorized entity.
+	errUnauthorizedValidator = errors.New("unauthorized validator")
+
+	// errCoinBaseMisMatch is returned if a header's coinbase do not match with signature
+	//errCoinBaseMisMatch = errors.New("coinbase do not match with signature")
+
+	// errRecentlySigned is returned if a header is signed by an authorized entity
+	// that already signed a header recently, thus is temporarily not allowed to.
+	//errRecentlySigned = errors.New("recently signed")
 )
 
 // SignerFn hashes and signs the data to be signed by a backing account.
@@ -170,11 +190,11 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (
 	if err != nil {
 		return nil, common.Address{}, err
 	}
-	var signer common.Address
-	copy(signer[:], crypto.Keccak256(pubkey[1:])[12:])
+	var addr common.Address
+	copy(addr[:], crypto.Keccak256(pubkey[1:])[12:])
 
-	sigcache.Add(hash, signer)
-	return pubkey, signer, nil
+	sigcache.Add(hash, addr)
+	return pubkey, addr, nil
 }
 
 // Spos is the proof-of-authority consensus engine proposed to support the
@@ -378,6 +398,100 @@ func (c *Poseidon) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 
 	// All basic checks passed, verify the seal and return
 	return c.verifySeal(chain, header, parents)
+}
+
+// snapshot retrieves the authorization snapshot at a given point in time.
+func (p *Poseidon) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
+	// Search for a snapshot in memory or on disk for checkpoints
+	var (
+		headers []*types.Header
+		snap    *Snapshot
+	)
+
+	for snap == nil {
+		// If an in-memory snapshot was found, use that
+		//if s, ok := p.recentSnaps.Get(hash); ok {
+		//	snap = s.(*Snapshot)
+		//	break
+		//}
+
+		// If an on-disk checkpoint snapshot can be found, use that
+		//if number%checkpointInterval == 0 {
+			if s, err := loadSnapshot(p.config, p.signatures, p.db, hash, p.ethAPI); err == nil {
+				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash)
+				snap = s
+				break
+			}
+		//}
+
+		// If we're at the genesis, snapshot the initial state.
+		if number == 0 {
+			checkpoint := chain.GetHeaderByNumber(number)
+			if checkpoint != nil {
+				// get checkpoint data
+				hash := checkpoint.Hash()
+
+				validatorBytes := checkpoint.Extra[extraVanity : len(checkpoint.Extra)-extraSeal]
+				// get validators from headers
+				validators, err := ParseValidators(validatorBytes)
+				if err != nil {
+					return nil, err
+				}
+
+				// new snap shot
+				snap = newSnapshot(p.config, p.signatures, number, hash, validators, p.ethAPI)
+				if err := snap.store(p.db); err != nil {
+					return nil, err
+				}
+				log.Info("Stored checkpoint snapshot to disk", "number", number, "hash", hash)
+				break
+			}
+		}
+
+		// No snapshot for this header, gather the header and move backward
+		var header *types.Header
+		if len(parents) > 0 {
+			// If we have explicit parents, pick from there (enforced)
+			header = parents[len(parents)-1]
+			if header.Hash() != hash || header.Number.Uint64() != number {
+				return nil, consensus.ErrUnknownAncestor
+			}
+			parents = parents[:len(parents)-1]
+		} else {
+			// No explicit parents (or no more left), reach out to the database
+			header = chain.GetHeader(hash, number)
+			if header == nil {
+				return nil, consensus.ErrUnknownAncestor
+			}
+		}
+		headers = append(headers, header)
+		number, hash = number-1, header.ParentHash
+	}
+
+	// check if snapshot is nil
+	if snap == nil {
+		return nil, fmt.Errorf("unknown error while retrieving snapshot at block number %v", number)
+	}
+
+	// Previous snapshot found, apply any pending headers on top of it
+	for i := 0; i < len(headers)/2; i++ {
+		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
+	}
+
+	snap, err := snap.apply(headers, chain, parents, p.chainConfig.ChainID)
+	if err != nil {
+		return nil, err
+	}
+	//p.recentSnaps.Add(snap.Hash, snap)
+
+	// If we've generated a new checkpoint snapshot, save to disk
+	//if snap.Number%checkpointInterval == 0 && len(headers) > 0 {
+	//	if err = snap.store(p.db); err != nil {
+	//		return nil, err
+	//	}
+	//	log.Trace("Stored snapshot to disk", "number", snap.Number, "hash", snap.Hash)
+	//}
+	return snap, err
 }
 
 // VerifyUncles implements consensus.Engine, always returning an error for any

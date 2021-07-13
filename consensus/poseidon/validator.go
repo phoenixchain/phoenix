@@ -21,7 +21,7 @@ type ValidatorInfo struct {
 
 // ==========================  interaction with contract/account =========
 
-func (p *Poseidon) IsValidator(validator common.Address) (bool, error) {
+func (p *Poseidon) IsValidator(validator common.Address, blockNumber *big.Int) (bool, error) {
 	// method
 	method := "isValidator"
 
@@ -42,7 +42,7 @@ func (p *Poseidon) IsValidator(validator common.Address) (bool, error) {
 		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
-	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)
+	}, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()-1)), nil)
 	if err != nil {
 		return false, err
 	}
@@ -55,7 +55,7 @@ func (p *Poseidon) IsValidator(validator common.Address) (bool, error) {
 	return *out, nil
 }
 
-func (p *Poseidon) GetValidatorInfo(validator common.Address) (*ValidatorInfo, error) {
+func (p *Poseidon) GetValidatorInfo(validator common.Address, blockNumber *big.Int) (*ValidatorInfo, error) {
 	// method
 	method := "getValidatorInfo"
 
@@ -76,7 +76,7 @@ func (p *Poseidon) GetValidatorInfo(validator common.Address) (*ValidatorInfo, e
 		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
-	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)
+	}, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()-1)), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (p *Poseidon) GetValidatorInfo(validator common.Address) (*ValidatorInfo, e
 	return out, nil
 }
 
-func (p *Poseidon) IsProposer(validator common.Address) (bool, error) {
+func (p *Poseidon) IsProposer(validator common.Address, blockNumber *big.Int) (bool, error) {
 	// method
 	method := "isProposer"
 
@@ -110,7 +110,7 @@ func (p *Poseidon) IsProposer(validator common.Address) (bool, error) {
 		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
-	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)
+	}, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()-1)), nil)
 	if err != nil {
 		return false, err
 	}
@@ -122,7 +122,7 @@ func (p *Poseidon) IsProposer(validator common.Address) (bool, error) {
 	return *out, nil
 }
 
-func (p *Poseidon) GetCommitteeSupply() (*big.Int, error) {
+func (p *Poseidon) GetCommitteeSupply(blockNumber *big.Int) (*big.Int, error) {
 	// method
 	method := "getCommitteeSupply"
 
@@ -143,7 +143,7 @@ func (p *Poseidon) GetCommitteeSupply() (*big.Int, error) {
 		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
-	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)
+	}, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()-1)), nil)
 	if err != nil {
 		return nil, err
 	}

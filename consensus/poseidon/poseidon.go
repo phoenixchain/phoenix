@@ -522,16 +522,16 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 	if err != nil {
 		return err
 	}
-	if isProposer, err := c.IsProposer(signer); err != nil {
+	if isProposer, err := c.IsProposer(signer, header.Number); err != nil {
 		return err
 	} else if isProposer == false {
 		return errUnauthorizedSigner
 	}
-	info, err := c.GetValidatorInfo(signer)
+	info, err := c.GetValidatorInfo(signer, header.Number)
 	if err != nil {
 		return err
 	}
-	committeeSupply, err := c.GetCommitteeSupply()
+	committeeSupply, err := c.GetCommitteeSupply(header.Number)
 	if err != nil {
 		return err
 	}
@@ -562,7 +562,7 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 	if c.vrfFn == nil {
 		return errInvalidUncleHash
 	}
-	if isProposer, err := c.IsProposer(c.val); err != nil || isProposer == false {
+	if isProposer, err := c.IsProposer(c.val, header.Number); err != nil || isProposer == false {
 		return err
 	}
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
@@ -702,11 +702,11 @@ func (c *Poseidon) sortition(chain consensus.ChainHeaderReader, header *types.He
 func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	header := block.Header()
 
-	info, err := c.GetValidatorInfo(c.val)
+	info, err := c.GetValidatorInfo(c.val, header.Number)
 	if err != nil {
 		return err
 	}
-	committeeSupply, err := c.GetCommitteeSupply()
+	committeeSupply, err := c.GetCommitteeSupply(header.Number)
 	if err != nil {
 		return err
 	}
@@ -791,7 +791,7 @@ func (c *Poseidon) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64
 	if header != nil {
 		nonce = header.Nonce
 	}
-	info, err := c.GetValidatorInfo(c.val)
+	info, err := c.GetValidatorInfo(c.val, header.Number)
 	if err != nil {
 		info = &ValidatorInfo{
 			PerProposerHeight: big.NewInt(0),
@@ -826,6 +826,8 @@ func calcDifficulty(
 	diffNumber := big.NewInt(0).Sub(blockNumber, perProposerHeight) //uint64
 	if diffNumber.Cmp(big.NewInt(0)) < 0 {
 		diffNumber = diffNumber.SetInt64(0)
+	} else {
+		diffNumber = diffNumber.Div(diffNumber, big.NewInt(256))
 	}
 	amountSupply := big.NewInt(0).Set(totalSupply) //uint64
 

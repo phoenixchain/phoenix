@@ -277,9 +277,8 @@ func (p *Poseidon) IsSystemContract(to *common.Address) bool {
 // Author implements consensus.Engine, returning the Ethereum address recovered
 // from the signature in the header's extra-data section.
 func (c *Poseidon) Author(header *types.Header) (common.Address, error) {
-	//_, signer, err := ecrecover(header, c.signatures)
-	//return signer, err
-	return header.Coinbase, nil
+	_, signer, err := ecrecover(header, c.signatures, c.chainConfig.ChainID)
+	return signer, err
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.

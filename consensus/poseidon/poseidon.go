@@ -592,8 +592,7 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 
 	header.Coinbase = common.Address{}
 
-	header.Extra = append(header.Extra, make([]byte, extraVrf)...)
-	header.Extra = append(header.Extra, make([]byte, extraSeal)...)
+	header.Extra = append(header.Extra, make([]byte, extraVrf+extraSeal)...)
 	return nil
 }
 
@@ -675,7 +674,7 @@ func (c *Poseidon) GetVrfAlpha(parentHash common.Hash, nonce types.BlockNonce) [
 	return alpha
 }
 
-func (c *Poseidon) sealExtra(chain consensus.ChainHeaderReader, header *types.Header, info *ValidatorInfo, committeeSupply *big.Int, signer common.Address, signFn SignerFn) (bool, error) {
+func (c *Poseidon) sortition(chain consensus.ChainHeaderReader, header *types.Header, info *ValidatorInfo, committeeSupply *big.Int, signer common.Address, signFn SignerFn) (bool, error) {
 	alpha := c.GetVrfAlpha(header.ParentHash, header.Nonce)
 	beta, pi, err := c.vrfFn(alpha)
 	if err != nil {
@@ -735,7 +734,7 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 	// Sweet, the protocol permits us to sign the block, wait for our time
 	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
 
-	isSeal, err := c.sealExtra(chain, header, info, committeeSupply, signer, signFn)
+	isSeal, err := c.sortition(chain, header, info, committeeSupply, signer, signFn)
 	if err != nil {
 		return err
 	} else if isSeal == false {
@@ -763,7 +762,7 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 				if isSeal {
 					continue
 				}
-				isSeal, err = c.sealExtra(chain, header, info, committeeSupply, signer, signFn)
+				isSeal, err = c.sortition(chain, header, info, committeeSupply, signer, signFn)
 				if err != nil {
 					log.Warn("Block sealExtra failed", "err", err)
 					return

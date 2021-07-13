@@ -109,6 +109,8 @@ var (
 	// to contain a 65 byte secp256k1 signature.
 	errMissingSignature = errors.New("extra-data 65 byte signature suffix missing")
 
+	errMissingVrf = errors.New("extra-data 81 byte vrf suffix missing")
+
 	// errExtraSigners is returned if non-checkpoint block contain signer data in
 	// their extra-data fields.
 	errExtraSigners = errors.New("non-checkpoint block contains extra signer list")
@@ -127,6 +129,8 @@ var (
 	// errInvalidUncleHash is returned if a block contains an non-empty uncle list.
 	errInvalidUncleHash = errors.New("non empty uncle hash")
 
+	errInvalidVrfFn = errors.New("non empty vrf call")
+
 	// errInvalidDifficulty is returned if the difficulty of a block neither 1 or 2.
 	errInvalidDifficulty = errors.New("invalid difficulty")
 
@@ -144,6 +148,8 @@ var (
 
 	// errUnauthorizedSigner is returned if a header is signed by a non-authorized entity.
 	errUnauthorizedSigner = errors.New("unauthorized signer")
+
+	errNotProposer = errors.New("not proposer")
 
 	// errRecentlySigned is returned if a header is signed by an authorized entity
 	// that already signed a header recently, thus is temporarily not allowed to.
@@ -333,6 +339,9 @@ func (c *Poseidon) verifyHeader(chain consensus.ChainHeaderReader, header *types
 	}
 	if len(header.Extra) < extraVanity+extraSeal {
 		return errMissingSignature
+	}
+	if len(header.Extra) < extraVanity+extraSeal+extraVrf {
+		return errMissingVrf
 	}
 	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
 	//signersBytes := len(header.Extra) - extraVanity - extraSeal
@@ -527,10 +536,8 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 	if err != nil {
 		return err
 	}
-	if isProposer, err := c.IsProposer(signer, header.Number); err != nil {
-		return err
-	} else if isProposer == false {
-		return errUnauthorizedSigner
+	if isProposer, err := c.IsProposer(signer, header.Number); err != nil || isProposer == false {
+		return errNotProposer
 	}
 	info, err := c.GetValidatorInfo(signer, header.Number)
 	if err != nil {
@@ -565,10 +572,10 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 // header for running the transactions on top.
 func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 	if c.vrfFn == nil {
-		return errInvalidUncleHash
+		return errInvalidVrfFn
 	}
 	if isProposer, err := c.IsProposer(c.val, header.Number); err != nil || isProposer == false {
-		return err
+		return errNotProposer
 	}
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
 	header.Nonce = types.BlockNonce{}
@@ -595,7 +602,11 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 		header.Time = uint64(time.Now().Unix())
 	}
 
-	header.Coinbase = common.Address{}
+	info, err := c.GetValidatorInfo(c.val, header.Number)
+	if err != nil {
+		return err
+	}
+	header.Coinbase = info.RewardAddr
 
 	header.Extra = append(header.Extra, make([]byte, extraVrf+extraSeal)...)
 	return nil
@@ -603,7 +614,7 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 
 func (c *Poseidon) verifySort(money *big.Int, totalMoney *big.Int, blockNumber *big.Int, vrfOutput []byte) bool {
 	expectedSize := vrfExpectedSize
-	if money.Cmp(totalMoney) == 0 {
+	if money.Cmp(totalMoney) >= 0 {
 		expectedSize = 1
 	}
 	return vrf.VerifySort(new(big.Int).Div(money, ether).Uint64(), new(big.Int).Div(totalMoney, ether).Uint64(), expectedSize, vrfOutput)
@@ -685,7 +696,7 @@ func (c *Poseidon) sortition(chain consensus.ChainHeaderReader, header *types.He
 	if err != nil {
 		return false, err
 	}
-	copy(header.Extra[extraSeal+extraVrf:], pi)
+	copy(header.Extra[extraVanity:], pi)
 
 	if c.verifySort(info.TotalSupply, committeeSupply, header.Number, beta) == false {
 		return false, nil
@@ -742,8 +753,6 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 	isSeal, err := c.sortition(chain, header, info, committeeSupply, signer, signFn)
 	if err != nil {
 		return err
-	} else if isSeal == false {
-		header.Nonce = types.EncodeNonce(header.Nonce.Uint64() + 1)
 	}
 	// Wait until sealing is terminated or delay timeout.
 	log.Trace("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
@@ -766,12 +775,11 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 				if isSeal {
 					continue
 				}
+				header.Nonce = types.EncodeNonce(header.Nonce.Uint64() + 1)
 				isSeal, err = c.sortition(chain, header, info, committeeSupply, signer, signFn)
 				if err != nil {
 					log.Warn("Block sealExtra failed", "err", err)
 					return
-				} else if isSeal == false {
-					header.Nonce = types.EncodeNonce(header.Nonce.Uint64() + 1)
 				}
 			}
 		}
@@ -822,9 +830,9 @@ func calcDifficulty(
 	totalSupply *big.Int,
 	perProposerHeight *big.Int,
 ) *big.Int {
-	nonce := big.NewInt(0).SetUint64(nonceSignSize - blockNonce.Uint64()) //uint8
-	if nonce.Cmp(big.NewInt(256)) >= 0 {
-		nonce.SetInt64(0)
+	nonce := big.NewInt(0) //uint8
+	if blockNonce.Uint64() < nonceSignSize {
+		nonce = nonce.SetUint64(nonceSignSize - blockNonce.Uint64())
 	}
 	transactions := big.NewInt(0)                                   //uint32
 	custom := big.NewInt(0)                                         //uint88
@@ -893,7 +901,7 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 		chainId,
 		header.ParentHash,
 		header.UncleHash,
-		//header.Coinbase,
+		header.Coinbase,
 		header.Root,
 		header.TxHash,
 		header.ReceiptHash,

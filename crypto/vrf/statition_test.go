@@ -91,7 +91,7 @@ func TestSortitionSim(t *testing.T) {
 	sort.Slice(nodes, func(i, j int) bool {
 		return nodes[i].money > nodes[j].money
 	})
-	fmt.Printf("%10s%10s\n", "money", "selected", "rate")
+	fmt.Printf("%10s%10s%10s\n", "money", "selected", "rate")
 	for i := 0; i < NodeSize; i++ {
 		nodes[i].rate = float64(nodes[i].money) / float64(totalMoney) * 100
 		fmt.Printf("%10d%10d%10f\n", nodes[i].money, nodes[i].hit, nodes[i].rate)

@@ -74,6 +74,8 @@ var (
 		common.HexToAddress(systemcontracts.ValidatorFactoryContract): true,
 		common.HexToAddress(systemcontracts.ValidatorHubContract):     true,
 	}
+
+	ether = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -538,7 +540,7 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 	pi := make([]byte, extraVrf)
 	copy(header.Extra[len(header.Extra)-extraSeal-extraVrf:len(header.Extra)-extraSeal], pi)
 
-	alpha := c.GetVrfAlpha(header)
+	alpha := c.GetVrfAlpha(header.ParentHash, header.Nonce)
 	publicKey, err := crypto.UnmarshalPubkey(pubkey)
 	if err != nil {
 		return err
@@ -547,7 +549,7 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 	if err != nil {
 		return err
 	}
-	if c.verifySort(info.TotalSupply.Uint64(), committeeSupply.Uint64(), header.Number, beta) == false {
+	if c.verifySort(info.TotalSupply, committeeSupply, header.Number, beta) == false {
 		return errUnauthorizedSigner
 	}
 	return nil
@@ -587,7 +589,7 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 		header.Time = uint64(time.Now().Unix())
 	}
 
-	alpha := c.GetVrfAlpha(parent)
+	alpha := c.GetVrfAlpha(parent.Hash(), header.Nonce)
 	beta, pi, err := c.vrfFn(alpha)
 	if err != nil {
 		return err
@@ -609,18 +611,18 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 	// Set the correct difficulty
 	header.Difficulty = calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.PerProposerHeight)
 
-	if c.verifySort(info.TotalSupply.Uint64(), committeeSupply.Uint64(), header.Number, beta) == false {
+	if c.verifySort(info.TotalSupply, committeeSupply, header.Number, beta) == false {
 		return errUnauthorizedSigner
 	}
 	return nil
 }
 
-func (c *Poseidon) verifySort(money uint64, totalMoney uint64, blockNumber *big.Int, vrfOutput []byte) bool {
+func (c *Poseidon) verifySort(money *big.Int, totalMoney *big.Int, blockNumber *big.Int, vrfOutput []byte) bool {
 	expectedSize := vrfExpectedSize
-	if money == totalMoney {
+	if money.Cmp(totalMoney) == 0 {
 		expectedSize = 1
 	}
-	return vrf.VerifySort(money, totalMoney, expectedSize, vrfOutput)
+	return vrf.VerifySort(new(big.Int).Div(money, ether).Uint64(), new(big.Int).Div(totalMoney, ether).Uint64(), expectedSize, vrfOutput)
 }
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
@@ -686,11 +688,10 @@ func (c *Poseidon) Authorize(val common.Address, signFn SignerFn, vrfFn VrfProve
 	c.vrfFn = vrfFn
 }
 
-func (c *Poseidon) GetVrfAlpha(parent *types.Header) []byte {
-	hash := parent.Hash()
-	alpha := make([]byte, len(hash))
-	copy(alpha, hash[:])
-	alpha = append(alpha, parent.Nonce[:]...)
+func (c *Poseidon) GetVrfAlpha(parentHash common.Hash, nonce types.BlockNonce) []byte {
+	alpha := make([]byte, len(parentHash))
+	copy(alpha, parentHash[:])
+	alpha = append(alpha, nonce[:]...)
 	return alpha
 }
 

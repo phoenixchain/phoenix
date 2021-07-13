@@ -1,12 +1,19 @@
 package vrf
 
 import (
+	"crypto/ecdsa"
+	"encoding/hex"
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
 	"math/rand"
+	"sort"
 	"testing"
 	"time"
-	"github.com/ethereum/go-ethereum/crypto"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func TestSortitionBasic(t *testing.T) {
 	hitcount := uint64(0)
@@ -37,45 +44,59 @@ func TestSortitionBasic(t *testing.T) {
 	}
 }
 
-type User struct {
-	name           string
-	money          uint64
-	selected_count int
+type Node struct {
+	beta   []byte
+	money  uint64
+	hit    uint64
+	rate   float64
+	priKey *ecdsa.PrivateKey
 }
 
 func TestSortitionSim(t *testing.T) {
 	const N = 1000
-	const expectedSize = 5
-	users := []User{
-		{"A", 100, 0},
-		{"B", 200, 0},
-		{"C", 300, 0},
-		{"D", 400, 0},
-		{"E", 500, 0},
-		{"A1", 1000, 0},
-		{"A2", 10000, 0},
-		{"A3", 100000, 0},
-		//{"A4",1000000, 0},
-		//{"A5",10000000, 0},
-	}
+	const expectedSize = 3
+	const NodeSize = 50
+	nodes := make([]*Node, NodeSize)
 	var totalMoney uint64
-	for i := 0; i < len(users); i++ {
-		totalMoney += users[i].money
+	for i := 0; i < NodeSize; i++ {
+		money := uint64(rand.Int63n(40000000))
+		sk, err := crypto.GenerateKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+		nodes[i] = &Node{
+			money:  money,
+			priKey: sk,
+		}
+		totalMoney += money
 	}
+	totalCount := 0
+	var seed [32]byte
 
 	fmt.Printf("N=%d, total_money=%d, expectedSize=%d\n", N, totalMoney, expectedSize)
-	fmt.Printf("%10s%10s%10s\n", "name", "money", "selected")
-	for i := 0; i < len(users); i++ {
-		for j := 0; j < N; j++ {
-			var vrfOutput [32]byte
-			rand.Read(vrfOutput[:])
-			selected := SelectSort(users[i].money, totalMoney, expectedSize, vrfOutput[:])
+	for j := 0; j < N; j++ {
+		rand.Read(seed[:])
+		for i := 0; i < NodeSize; i++ {
+			beta, _, err := Prove(nodes[i].priKey, seed[:])
+			if err != nil {
+				t.Fatal(err)
+			}
+			selected := SelectSort(nodes[i].money, totalMoney, expectedSize, beta)
 			if selected > 0 {
-				users[i].selected_count += 1
+				nodes[i].hit += 1
+				totalCount++
 			}
 		}
-		fmt.Printf("%10s%10d%10d\n", users[i].name, users[i].money, users[i].selected_count)
 	}
+	sort.Slice(nodes, func(i, j int) bool {
+		return nodes[i].money > nodes[j].money
+	})
+	fmt.Printf("%10s%10s\n", "money", "selected", "rate")
+	for i := 0; i < NodeSize; i++ {
+		nodes[i].rate = float64(nodes[i].money) / float64(totalMoney) * 100
+		fmt.Printf("%10d%10d%10f\n", nodes[i].money, nodes[i].hit, nodes[i].rate)
+	}
+	fmt.Printf("totalMoney=%d,hitCount=%d,totalCount=%d,hitRate=%f\n", totalMoney, totalCount, len(nodes)*N, float64(totalCount)/float64(len(nodes)*N))
 	//fmt.Printf("End\n")
 }
 
@@ -90,13 +111,13 @@ func TestSelectAlgoSpeed(t *testing.T) {
 		var seed [32]byte
 		rand.Read(seed[:])
 
-		sk,err := crypto.GenerateKey()
+		sk, err := crypto.GenerateKey()
 		if err != nil {
 			t.Fatal(err)
 		}
 		alpha := seed[:]
 
-		beta, _, err := Prove(sk,alpha)
+		beta, _, err := Prove(sk, alpha)
 
 		selected := SelectSort(myMoney, totalMoney, expectedSize, beta)
 		if selected > 0 {
@@ -105,4 +126,82 @@ func TestSelectAlgoSpeed(t *testing.T) {
 	}
 	dis := time.Since(start)
 	fmt.Printf("time=%s\n", dis)
+}
+
+func TestSelectAlgoSpeed2(t *testing.T) {
+	const expectedSize = 1
+	const myMoney = 1
+	const totalMoney = 1
+
+	seed, err := hex.DecodeString("a71c2340636002424a086eae6e8b319ef15aebd0bc71dd0773d84de0ea2715b4")
+	if err != nil {
+		panic(err)
+	}
+
+	sk, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	alpha := seed[:]
+
+	beta, _, err := Prove(sk, alpha)
+
+	selected := SelectSort(myMoney, totalMoney, expectedSize, beta)
+	fmt.Printf("time=%d\n", selected)
+}
+
+func TestSortitionNode(t *testing.T) {
+	SortitionNode(t)
+}
+
+func SortitionNode(t *testing.T) uint64 {
+	var alpha [32]byte
+	rand.Read(alpha[:])
+
+	const N = 50
+	const expectedSize = 3
+	totalMoney := uint64(0)
+	hitcount := uint64(0)
+	hitCnt := uint64(0)
+
+	nodes := make([]*Node, N)
+	for i := 0; i < N; i++ {
+		money := uint64(rand.Int63n(40000000))
+		//money := uint64(rand.Int63n(1000000000000000))
+		//money := uint64(rand.Int63n(math.MaxInt64 / N))
+		sk, err := crypto.GenerateKey()
+		if err != nil {
+			t.Fatal(err)
+		}
+		beta, _, err := Prove(sk, alpha[:])
+
+		nodes[i] = &Node{
+			beta:  beta,
+			money: money,
+		}
+		totalMoney += money
+		if money > totalMoney {
+			panic("money too large")
+		}
+	}
+
+	for i := 0; i < N; i++ {
+		selected := SelectSort(nodes[i].money, totalMoney, expectedSize, nodes[i].beta)
+		//fmt.Printf("i=%d, beta=%x, myMoney=%d, selected=%d\n", i, nodes[i].beta, nodes[i].money, selected)
+		hitcount += selected
+		if selected > 0 {
+			hitCnt++
+		}
+	}
+	//fmt.Printf("hitcount=%d, hitCnt=%d, totalMoney=%d\n", hitcount, hitCnt, totalMoney)
+	return hitCnt
+}
+
+func TestSortitionMoreNode(t *testing.T) {
+	totalNode := uint64(0)
+	num := uint64(1000)
+	for i := uint64(0); i < num; i++ {
+		totalNode += SortitionNode(t)
+	}
+	fmt.Println(float64(totalNode) / float64(num))
 }

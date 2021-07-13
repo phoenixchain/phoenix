@@ -218,6 +218,7 @@ type Poseidon struct {
 	lock   sync.RWMutex   // Protects the signer fields
 
 	ethAPI *ethapi.PublicBlockChainAPI
+	txPoolAPI *ethapi.PublicTransactionPoolAPI
 
 	validatorSetABI abi.ABI
 }
@@ -250,6 +251,10 @@ func New(
 		validatorSetABI: vABI,
 		signer:          types.NewEIP155Signer(chainConfig.ChainID),
 	}
+}
+
+func (p *Poseidon) SetTxPoolAPI(txPoolAPI *ethapi.PublicTransactionPoolAPI) {
+	p.txPoolAPI = txPoolAPI
 }
 
 func (p *Poseidon) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
@@ -914,10 +919,6 @@ func (c *Poseidon) Heartbeat(header *types.Header, perProposerHeight uint64) err
 		return nil
 	}
 
-	// block
-	blockHash := header.ParentHash
-	blockNr := rpc.BlockNumberOrHashWithHash(blockHash, false)
-
 	// method
 	method := "slash"
 
@@ -929,15 +930,13 @@ func (c *Poseidon) Heartbeat(header *types.Header, perProposerHeight uint64) err
 		log.Error("Unable to pack tx for slash", "error", err)
 		return err
 	}
+
 	// call
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err := c.ethAPI.Call(ctx, ethapi.TransactionArgs{
-		Gas:  &gas,
-		To:   &toAddress,
-		Data: &msgData,
-	}, blockNr, nil)
+
+	result, err := c.txPoolAPI.SendTransaction(ctx, ethapi.TransactionArgs{From: &c.val, To: &toAddress, Data: &msgData, Gas: &gas,})
 	if err != nil {
 		return err
 	}
@@ -950,36 +949,31 @@ func (c *Poseidon) Heartbeat(header *types.Header, perProposerHeight uint64) err
 func (p *Poseidon) initContract(state *state.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	return nil
+
+	// TODO fill
 	// method
-	method := "init"
-	// contracts
-	contracts := []string{
-		//systemcontracts.ValidatorContract,
-		//systemcontracts.SlashContract,
-		//systemcontracts.LightClientContract,
-		//systemcontracts.RelayerHubContract,
-		//systemcontracts.TokenHubContract,
-		//systemcontracts.RelayerIncentivizeContract,
-		//systemcontracts.CrossChainContract,
-		systemcontracts.ValidatorFactoryContract,
-		systemcontracts.ValidatorHubContract,
-	}
-	// get packed data
-	data, err := p.validatorSetABI.Pack(method)
-	if err != nil {
-		log.Error("Unable to pack tx for init validator set", "error", err)
-		return err
-	}
-	for _, c := range contracts {
-		msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), data, common.Big0)
-		// apply message
-		log.Trace("init contract", "block hash", header.Hash(), "contract", c)
-		err = p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	//method := "init"
+	//// contracts
+	//contracts := []string{
+	//	systemcontracts.ValidatorFactoryContract,
+	//	systemcontracts.ValidatorHubContract,
+	//}
+	//// get packed data
+	//data, err := p.validatorSetABI.Pack(method)
+	//if err != nil {
+	//	log.Error("Unable to pack tx for init validator set", "error", err)
+	//	return err
+	//}
+	//for _, c := range contracts {
+	//	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), data, common.Big0)
+	//	// apply message
+	//	log.Trace("init contract", "block hash", header.Hash(), "contract", c)
+	//	err = p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+	//	if err != nil {
+	//		return err
+	//	}
+	//}
+	//return nil
 }
 
 // get system message

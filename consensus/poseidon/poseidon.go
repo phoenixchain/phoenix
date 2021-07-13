@@ -60,6 +60,8 @@ const (
 	vrfExpectedSize = 3.0
 
 	validatorBytesLength = common.AddressLength
+
+	nonceSignSize = 255
 )
 
 // Spos proof-of-authority protocol constants.
@@ -205,7 +207,7 @@ type Poseidon struct {
 	chainConfig *params.ChainConfig    // Chain config
 	config      *params.PoseidonConfig // Consensus engine configuration parameters
 	genesisHash common.Hash
-	db          ethdb.Database         // Database to store and retrieve snapshot checkpoints
+	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
@@ -419,11 +421,11 @@ func (p *Poseidon) snapshot(chain consensus.ChainHeaderReader, number uint64, ha
 
 		// If an on-disk checkpoint snapshot can be found, use that
 		//if number%checkpointInterval == 0 {
-			if s, err := loadSnapshot(p.config, p.signatures, p.db, hash, p.ethAPI); err == nil {
-				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash)
-				snap = s
-				break
-			}
+		if s, err := loadSnapshot(p.config, p.signatures, p.db, hash, p.ethAPI); err == nil {
+			log.Trace("Loaded snapshot from disk", "number", number, "hash", hash)
+			snap = s
+			break
+		}
 		//}
 
 		// If we're at the genesis, snapshot the initial state.
@@ -589,31 +591,10 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 		header.Time = uint64(time.Now().Unix())
 	}
 
-	alpha := c.GetVrfAlpha(parent.Hash(), header.Nonce)
-	beta, pi, err := c.vrfFn(alpha)
-	if err != nil {
-		return err
-	}
-	header.Extra = append(header.Extra, pi...)
+	header.Coinbase = common.Address{}
 
+	header.Extra = append(header.Extra, make([]byte, extraVrf)...)
 	header.Extra = append(header.Extra, make([]byte, extraSeal)...)
-
-	info, err := c.GetValidatorInfo(c.val)
-	if err != nil {
-		return err
-	}
-	committeeSupply, err := c.GetCommitteeSupply()
-	if err != nil {
-		return err
-	}
-
-	header.Coinbase = info.RewardAddr
-	// Set the correct difficulty
-	header.Difficulty = calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.PerProposerHeight)
-
-	if c.verifySort(info.TotalSupply, committeeSupply, header.Number, beta) == false {
-		return errUnauthorizedSigner
-	}
 	return nil
 }
 
@@ -649,7 +630,7 @@ func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
 func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
-		txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
+	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
 	cx := chainContext{Chain: chain, poseidon: c}
 	if txs == nil {
 		txs = make([]*types.Transaction, 0)
@@ -695,10 +676,43 @@ func (c *Poseidon) GetVrfAlpha(parentHash common.Hash, nonce types.BlockNonce) [
 	return alpha
 }
 
+func (c *Poseidon) sealExtra(chain consensus.ChainHeaderReader, header *types.Header, info *ValidatorInfo, committeeSupply *big.Int, signer common.Address, signFn SignerFn) (bool, error) {
+	alpha := c.GetVrfAlpha(header.ParentHash, header.Nonce)
+	beta, pi, err := c.vrfFn(alpha)
+	if err != nil {
+		return false, err
+	}
+	copy(header.Extra[extraSeal+extraVrf:], pi)
+
+	if c.verifySort(info.TotalSupply, committeeSupply, header.Number, beta) == false {
+		return false, nil
+	}
+	// Set the correct difficulty
+	header.Difficulty = calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.PerProposerHeight)
+
+	// Sign all the things!
+	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypePoseidon, PoseidonRLP(header, c.chainConfig.ChainID))
+	if err != nil {
+		return true, err
+	}
+	copy(header.Extra[len(header.Extra)-extraSeal:], sighash)
+	return true, nil
+}
+
 // Seal implements consensus.Engine, attempting to create a sealed block using
 // the local signing credentials.
 func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	header := block.Header()
+
+	info, err := c.GetValidatorInfo(c.val)
+	if err != nil {
+		return err
+	}
+	committeeSupply, err := c.GetCommitteeSupply()
+	if err != nil {
+		return err
+	}
+	header.Coinbase = info.RewardAddr
 
 	// Sealing the genesis block is not supported
 	number := header.Number.Uint64()
@@ -711,10 +725,6 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 		return nil
 	}
 
-	info, err := c.GetValidatorInfo(c.val)
-	if err != nil {
-		return err
-	}
 	perProposerHeight := info.PerProposerHeight.Uint64()
 	c.Heartbeat(header, perProposerHeight)
 
@@ -726,21 +736,43 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 	// Sweet, the protocol permits us to sign the block, wait for our time
 	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
 
-	// Sign all the things!
-	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypePoseidon, PoseidonRLP(header, c.chainConfig.ChainID))
+	isSeal, err := c.sealExtra(chain, header, info, committeeSupply, signer, signFn)
 	if err != nil {
 		return err
+	} else if isSeal == false {
+		header.Nonce = types.EncodeNonce(header.Nonce.Uint64() + 1)
 	}
-	copy(header.Extra[len(header.Extra)-extraSeal:], sighash)
 	// Wait until sealing is terminated or delay timeout.
 	log.Trace("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
 	go func() {
-		select {
-		case <-stop:
-			return
-		case <-time.After(delay):
-		}
+		vrfTimer := time.NewTicker(time.Duration(c.config.Period/2) * time.Second)
+		defer vrfTimer.Stop()
+		afterTimer := time.NewTimer(delay)
+		defer afterTimer.Stop()
 
+		for i := 0; i <= nonceSignSize; i++ {
+			select {
+			case <-stop:
+				return
+			case <-afterTimer.C:
+				if isSeal {
+					i = nonceSignSize + 1 //stop for
+				} else {
+					afterTimer.Reset(1 * time.Second)
+				}
+			case <-vrfTimer.C:
+				if isSeal {
+					continue
+				}
+				isSeal, err = c.sealExtra(chain, header, info, committeeSupply, signer, signFn)
+				if err != nil {
+					log.Warn("Block sealExtra failed", "err", err)
+					return
+				} else if isSeal == false {
+					header.Nonce = types.EncodeNonce(header.Nonce.Uint64() + 1)
+				}
+			}
+		}
 		select {
 		case results <- block.WithSeal(header):
 		default:
@@ -787,7 +819,7 @@ func calcDifficulty(
 	totalSupply *big.Int,
 	perProposerHeight *big.Int,
 ) *big.Int {
-	nonce := big.NewInt(0).SetUint64(255 - blockNonce.Uint64()) //uint8
+	nonce := big.NewInt(0).SetUint64(nonceSignSize - blockNonce.Uint64()) //uint8
 	if nonce.Cmp(big.NewInt(256)) >= 0 {
 		nonce.SetInt64(0)
 	}
@@ -856,19 +888,19 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 		chainId,
 		header.ParentHash,
 		header.UncleHash,
-		header.Coinbase,
+		//header.Coinbase,
 		header.Root,
 		header.TxHash,
 		header.ReceiptHash,
 		header.Bloom,
-		header.Difficulty,
+		//header.Difficulty,
 		header.Number,
 		header.GasLimit,
 		header.GasUsed,
 		header.Time,
-		header.Extra[:len(header.Extra)-crypto.SignatureLength], // Yes, this will panic if extra is too short
+		header.Extra[:len(header.Extra)-crypto.SignatureLength-extraVrf], // Yes, this will panic if extra is too short
 		header.MixDigest,
-		header.Nonce,
+		//header.Nonce,
 	}
 	if header.BaseFee != nil {
 		enc = append(enc, header.BaseFee)

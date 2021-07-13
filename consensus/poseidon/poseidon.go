@@ -217,7 +217,7 @@ type Poseidon struct {
 	signFn SignerFn       // Signer function to authorize hashes with
 	lock   sync.RWMutex   // Protects the signer fields
 
-	ethAPI *ethapi.PublicBlockChainAPI
+	ethAPI    *ethapi.PublicBlockChainAPI
 	txPoolAPI *ethapi.PublicTransactionPoolAPI
 
 	validatorSetABI abi.ABI
@@ -753,16 +753,15 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 		afterTimer := time.NewTimer(delay)
 		defer afterTimer.Stop()
 
-		for i := 0; i <= nonceSignSize; i++ {
+		for {
 			select {
 			case <-stop:
 				return
 			case <-afterTimer.C:
 				if isSeal {
-					i = nonceSignSize + 1 //stop for
-				} else {
-					afterTimer.Reset(1 * time.Second)
+					goto sealLabel
 				}
+				afterTimer.Reset(1 * time.Second)
 			case <-vrfTimer.C:
 				if isSeal {
 					continue
@@ -776,6 +775,7 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 				}
 			}
 		}
+	sealLabel:
 		select {
 		case results <- block.WithSeal(header):
 		default:
@@ -938,7 +938,7 @@ func (c *Poseidon) Heartbeat(header *types.Header, perProposerHeight uint64) err
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 
-	result, err := c.txPoolAPI.SendTransaction(ctx, ethapi.TransactionArgs{From: &c.val, To: &toAddress, Data: &msgData, Gas: &gas,})
+	result, err := c.txPoolAPI.SendTransaction(ctx, ethapi.TransactionArgs{From: &c.val, To: &toAddress, Data: &msgData, Gas: &gas})
 	if err != nil {
 		return err
 	}

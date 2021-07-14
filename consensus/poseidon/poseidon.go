@@ -149,7 +149,7 @@ var (
 	// errUnauthorizedSigner is returned if a header is signed by a non-authorized entity.
 	errUnauthorizedSigner = errors.New("unauthorized signer")
 
-	errNotProposer = errors.New("not proposer")
+	errUnauthorizedProposer = errors.New("unauthorized proposer")
 
 	// errRecentlySigned is returned if a header is signed by an authorized entity
 	// that already signed a header recently, thus is temporarily not allowed to.
@@ -537,7 +537,7 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 		return err
 	}
 	if isProposer, err := c.IsProposer(signer, header.Number); err != nil || isProposer == false {
-		return errNotProposer
+		return errUnauthorizedProposer
 	}
 	info, err := c.GetValidatorInfo(signer, header.Number)
 	if err != nil {
@@ -575,7 +575,7 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 		return errInvalidVrfFn
 	}
 	if isProposer, err := c.IsProposer(c.val, header.Number); err != nil || isProposer == false {
-		return errNotProposer
+		return errUnauthorizedProposer
 	}
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
 	header.Nonce = types.BlockNonce{}
@@ -707,7 +707,7 @@ func (c *Poseidon) sortition(chain consensus.ChainHeaderReader, header *types.He
 	// Sign all the things!
 	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypePoseidon, PoseidonRLP(header, c.chainConfig.ChainID))
 	if err != nil {
-		return true, err
+		return false, err
 	}
 	copy(header.Extra[len(header.Extra)-extraSeal:], sighash)
 	return true, nil

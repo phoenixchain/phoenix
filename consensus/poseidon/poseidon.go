@@ -930,7 +930,7 @@ func (c *Poseidon) Heartbeat(block *types.Block) error {
 	perProposerHeight := info.PerProposerHeight.Uint64()
 
 	number := header.Number.Uint64()
-	if (number - perProposerHeight) < 100 {
+	if (number < perProposerHeight) || (number - perProposerHeight) < 100 {
 		return nil
 	}
 

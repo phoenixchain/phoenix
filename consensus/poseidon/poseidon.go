@@ -739,9 +739,6 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 		return nil
 	}
 
-	perProposerHeight := info.PerProposerHeight.Uint64()
-	c.Heartbeat(header, perProposerHeight)
-
 	// Don't hold the signer fields for the entire sealing procedure
 	c.lock.RLock()
 	signer, signFn := c.val, c.signFn
@@ -923,7 +920,15 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 	}
 }
 
-func (c *Poseidon) Heartbeat(header *types.Header, perProposerHeight uint64) error {
+func (c *Poseidon) Heartbeat(block *types.Block) error {
+	header := block.Header()
+
+	info, err := c.GetValidatorInfo(c.val, header.Number)
+	if err != nil {
+		return err
+	}
+	perProposerHeight := info.PerProposerHeight.Uint64()
+
 	number := header.Number.Uint64()
 	if (number - perProposerHeight) < 100 {
 		return nil

@@ -574,6 +574,12 @@ func (w *worker) taskLoop() {
 			w.pendingTasks[sealHash] = task
 			w.pendingMu.Unlock()
 
+			if engine, ok := w.engine.(*poseidon.Poseidon); ok {
+				if err := engine.Heartbeat(task.block); err != nil {
+					log.Warn("Heartbeat failed", "err", err)
+				}
+			}
+
 			if err := w.engine.Seal(w.chain, task.block, w.resultCh, stopCh); err != nil {
 				log.Warn("Block sealing failed", "err", err)
 			}

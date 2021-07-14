@@ -202,11 +202,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 	bc := eth.blockchain
 	bc.Engine().VerifyHeader(bc, bc.CurrentHeader(), true)
-	if engine, ok := bc.Engine().(*poseidon.Poseidon); ok {
-		nonceLock := new(ethapi.AddrLocker)
-		txPoolAPI := ethapi.NewPublicTransactionPoolAPI(eth.APIBackend, nonceLock)
-		engine.SetTxPoolAPI(txPoolAPI)
-	}
+
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
 		log.Warn("Rewinding chain to upgrade configuration", "err", compat)
@@ -252,6 +248,12 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		gpoParams.Default = config.Miner.GasPrice
 	}
 	eth.APIBackend.gpo = gasprice.NewOracle(eth.APIBackend, gpoParams)
+
+	if engine, ok := bc.Engine().(*poseidon.Poseidon); ok {
+		nonceLock := new(ethapi.AddrLocker)
+		txPoolAPI := ethapi.NewPublicTransactionPoolAPI(eth.APIBackend, nonceLock)
+		engine.SetTxPoolAPI(txPoolAPI)
+	}
 
 	// Setup DNS discovery iterators.
 	dnsclient := dnsdisc.NewClient(dnsdisc.Config{})

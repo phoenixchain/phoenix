@@ -609,6 +609,7 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 	header.Coinbase = info.RewardAddr
 
 	header.Extra = append(header.Extra, make([]byte, extraVrf+extraSeal)...)
+	header.Difficulty = common.Big0
 	return nil
 }
 
@@ -920,17 +921,15 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 	}
 }
 
-func (c *Poseidon) Heartbeat(block *types.Block) error {
-	header := block.Header()
-
-	info, err := c.GetValidatorInfo(c.val, header.Number)
+func (c *Poseidon) Heartbeat(number *big.Int) error {
+	info, err := c.GetValidatorInfo(c.val, number)
 	if err != nil {
 		return err
 	}
 	perProposerHeight := info.PerProposerHeight.Uint64()
 
-	number := header.Number.Uint64()
-	if (number < perProposerHeight) || (number - perProposerHeight) < 100 {
+	currentHeight := number.Uint64()
+	if (currentHeight < perProposerHeight) || (currentHeight - perProposerHeight) < 100 {
 		return nil
 	}
 
@@ -939,6 +938,8 @@ func (c *Poseidon) Heartbeat(block *types.Block) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // cancel when we are finished consuming integers
+
+	//ctx := context.WithValue(context.Background(), "", "")
 
 	data, err := c.validatorSetABI.Pack(method, c.val)
 	if err != nil {
@@ -949,9 +950,10 @@ func (c *Poseidon) Heartbeat(block *types.Block) error {
 	// call
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	gas := (hexutil.Uint64)(uint64(12000000))
 
-	result, err := c.txPoolAPI.SendTransaction(ctx, ethapi.TransactionArgs{From: &c.val, To: &toAddress, Data: &msgData, Gas: &gas})
+	gasPrice := (*hexutil.Big)(common.Big0)
+	result, err := c.txPoolAPI.SendTransaction(ctx, ethapi.TransactionArgs{From: &c.val, To: &toAddress, Data: &msgData, Gas: &gas, GasPrice: gasPrice})
 	if err != nil {
 		return err
 	}

@@ -574,11 +574,6 @@ func (w *worker) taskLoop() {
 			w.pendingTasks[sealHash] = task
 			w.pendingMu.Unlock()
 
-			if engine, ok := w.engine.(*poseidon.Poseidon); ok {
-				if err := engine.Heartbeat(task.block); err != nil {
-					log.Warn("Heartbeat failed", "err", err)
-				}
-			}
 
 			if err := w.engine.Seal(w.chain, task.block, w.resultCh, stopCh); err != nil {
 				log.Warn("Block sealing failed", "err", err)
@@ -916,6 +911,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		}
 		header.Coinbase = w.coinbase
 	}
+
+	if engine, ok := w.engine.(*poseidon.Poseidon); ok {
+		if err := engine.Heartbeat(num); err != nil {
+			log.Warn("Heartbeat failed", "err", err)
+		}
+	}
+
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		log.Error("Failed to prepare header for mining", "err", err)
 		return

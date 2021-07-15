@@ -306,7 +306,7 @@ func (c *Poseidon) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*t
 
 	go func() {
 		for i, header := range headers {
-			err := c.verifyHeader(chain, header, headers[:i])
+			err := c.verifyHeader(chain, header, headers[:i], seals[i])
 
 			select {
 			case <-abort:
@@ -322,7 +322,7 @@ func (c *Poseidon) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*t
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
-func (c *Poseidon) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+func (c *Poseidon) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, seal bool) error {
 	if header.Number == nil {
 		return errUnknownBlock
 	}
@@ -370,14 +370,14 @@ func (c *Poseidon) verifyHeader(chain consensus.ChainHeaderReader, header *types
 		return err
 	}
 	// All basic checks passed, verify cascading fields
-	return c.verifyCascadingFields(chain, header, parents)
+	return c.verifyCascadingFields(chain, header, parents, seal)
 }
 
 // verifyCascadingFields verifies all the header fields that are not standalone,
 // rather depend on a batch of previous headers. The caller may optionally pass
 // in a batch of parents (ascending order) to avoid looking those up from the
 // database. This is useful for concurrently verifying a batch of new headers.
-func (c *Poseidon) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+func (c *Poseidon) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, seal bool) error {
 	// The genesis block is the always valid dead-end
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -414,7 +414,12 @@ func (c *Poseidon) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 	}
 
 	// All basic checks passed, verify the seal and return
-	return c.verifySeal(chain, header, parents)
+	if seal == false {
+		if err := c.verifySeal(chain, header, parents); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // snapshot retrieves the authorization snapshot at a given point in time.
@@ -727,7 +732,6 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 	if err != nil {
 		return err
 	}
-	header.Coinbase = info.RewardAddr
 
 	// Sealing the genesis block is not supported
 	number := header.Number.Uint64()

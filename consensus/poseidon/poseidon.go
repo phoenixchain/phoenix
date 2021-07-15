@@ -294,7 +294,7 @@ func (c *Poseidon) Author(header *types.Header) (common.Address, error) {
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
 func (c *Poseidon) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
-	return c.verifyHeader(chain, header, nil)
+	return c.verifyHeader(chain, header, nil, seal)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers. The

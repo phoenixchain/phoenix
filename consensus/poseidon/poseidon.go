@@ -222,6 +222,7 @@ type Poseidon struct {
 	val    common.Address // Ethereum address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
 	lock   sync.RWMutex   // Protects the signer fields
+	beatcache *lru.ARCCache
 
 	ethAPI    *ethapi.PublicBlockChainAPI
 	txPoolAPI *ethapi.PublicTransactionPoolAPI
@@ -247,6 +248,11 @@ func New(
 	if err != nil {
 		panic(err)
 	}
+	beatCache, err := lru.NewARC(1)
+	if err != nil {
+		panic(err)
+	}
+
 	return &Poseidon{
 		chainConfig:     chainConfig,
 		config:          poseidonConfig,
@@ -256,6 +262,7 @@ func New(
 		signatures:      signatures,
 		validatorSetABI: vABI,
 		signer:          types.NewEIP155Signer(chainConfig.ChainID),
+		beatcache:       beatCache,
 	}
 }
 
@@ -708,7 +715,7 @@ func (c *Poseidon) sortition(chain consensus.ChainHeaderReader, header *types.He
 		return false, nil
 	}
 	// Set the correct difficulty
-	header.Difficulty = calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.PerProposerHeight)
+	header.Difficulty = calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.LastProposerHeight)
 
 	// Sign all the things!
 	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypePoseidon, PoseidonRLP(header, c.chainConfig.ChainID))
@@ -809,15 +816,15 @@ func (c *Poseidon) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64
 	info, err := c.GetValidatorInfo(c.val, header.Number)
 	if err != nil {
 		info = &ValidatorInfo{
-			PerProposerHeight: big.NewInt(0),
+			LastProposerHeight: big.NewInt(0),
 			TotalSupply:       big.NewInt(0),
 		}
 	}
-	return calcDifficulty(chain, time, nonce, header.Number, info.TotalSupply, info.PerProposerHeight)
+	return calcDifficulty(chain, time, nonce, header.Number, info.TotalSupply, info.LastProposerHeight)
 }
 
 func (c *Poseidon) checkDifficulty(chain consensus.ChainHeaderReader, header *types.Header, info *ValidatorInfo) error {
-	diff := calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.PerProposerHeight)
+	diff := calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.LastProposerHeight)
 	if diff.Cmp(header.Difficulty) != 0 {
 		return errInvalidDifficulty
 	}
@@ -926,14 +933,23 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 }
 
 func (c *Poseidon) Heartbeat(number *big.Int) error {
+	currentHeight := number.Uint64()
+
+	if value, ok := c.beatcache.Peek(c.val); ok {
+		if cacheHeight, ok := value.(uint64); ok {
+			if cacheHeight == currentHeight {
+				return nil
+			}
+		}
+	}
+
 	info, err := c.GetValidatorInfo(c.val, number)
 	if err != nil {
 		return err
 	}
-	perProposerHeight := info.PerProposerHeight.Uint64()
+	perProposerHeight := info.LastProposerHeight.Uint64()
 
-	currentHeight := number.Uint64()
-	if (currentHeight < perProposerHeight) || (currentHeight - perProposerHeight) < 100 {
+	if (currentHeight < perProposerHeight) || (currentHeight - perProposerHeight) < 15 {
 		return nil
 	}
 
@@ -961,6 +977,8 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 	if err != nil {
 		return err
 	}
+
+	c.beatcache.Add(c.val, currentHeight)
 	_ = result
 
 	return nil

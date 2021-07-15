@@ -16,7 +16,7 @@ type ValidatorInfo struct {
 	Name              string
 	RewardAddr        common.Address
 	TotalSupply       *big.Int
-	PerProposerHeight *big.Int
+	LastProposerHeight *big.Int
 }
 
 // ==========================  interaction with contract/account =========

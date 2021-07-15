@@ -3,9 +3,17 @@ package poseidon
 const validatorSetABI = `
 [
 	{
-		"inputs": [],
-		"stateMutability": "nonpayable",
-		"type": "constructor"
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": false,
+				"internalType": "address",
+				"name": "_validator",
+				"type": "address"
+			}
+		],
+		"name": "emitvalidatorRegister",
+		"type": "event"
 	},
 	{
 		"anonymous": false,
@@ -24,19 +32,6 @@ const validatorSetABI = `
 			}
 		],
 		"name": "paramChange",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "address",
-				"name": "_validator",
-				"type": "address"
-			}
-		],
-		"name": "validatorRegister",
 		"type": "event"
 	},
 	{
@@ -132,6 +127,32 @@ const validatorSetABI = `
 	},
 	{
 		"inputs": [],
+		"name": "alreadyInit",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "genesisMinter",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "getCommittee",
 		"outputs": [
 			{
@@ -183,11 +204,54 @@ const validatorSetABI = `
 				"type": "address"
 			}
 		],
+		"name": "getReward",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_validator",
+				"type": "address"
+			}
+		],
 		"name": "getSlashHeight",
 		"outputs": [
 			{
 				"internalType": "uint256",
 				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_validator",
+				"type": "address"
+			}
+		],
+		"name": "getSlashState",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "preslah",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "nextslah",
 				"type": "uint256"
 			}
 		],
@@ -234,7 +298,7 @@ const validatorSetABI = `
 			},
 			{
 				"internalType": "uint256",
-				"name": "perProposerHeight",
+				"name": "lastProposerHeight",
 				"type": "uint256"
 			}
 		],
@@ -278,6 +342,25 @@ const validatorSetABI = `
 		"inputs": [
 			{
 				"internalType": "address",
+				"name": "validator",
+				"type": "address"
+			}
+		],
+		"name": "isGenesisPeriod",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
 				"name": "_validator",
 				"type": "address"
 			}
@@ -315,6 +398,11 @@ const validatorSetABI = `
 	{
 		"inputs": [
 			{
+				"internalType": "address",
+				"name": "_validator",
+				"type": "address"
+			},
+			{
 				"internalType": "string",
 				"name": "_name",
 				"type": "string"
@@ -323,32 +411,6 @@ const validatorSetABI = `
 		"name": "register",
 		"outputs": [],
 		"stateMutability": "payable",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "requiredDues",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "requiredRegister",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -379,6 +441,19 @@ const validatorSetABI = `
 			}
 		],
 		"name": "slash",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_fee",
+				"type": "uint256"
+			}
+		],
+		"name": "syncTendermintHeader",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -437,7 +512,45 @@ const validatorSetABI = `
 				"type": "address"
 			}
 		],
-		"name": "validators",
+		"name": "validatorRegister",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "validatorsExist",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "validatorsMap",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -473,30 +586,6 @@ const validatorSetABI = `
 				"internalType": "uint256",
 				"name": "totalSupply",
 				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "perProposerHeight",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"name": "validatorsExistMap",
-		"outputs": [
-			{
-				"internalType": "bool",
-				"name": "",
-				"type": "bool"
 			}
 		],
 		"stateMutability": "view",

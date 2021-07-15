@@ -62,7 +62,7 @@ const (
 	validatorBytesLength = common.AddressLength
 
 	nonceSignSize = 255
-	heartRate = 100
+	heartRate     = 100
 )
 
 // Spos proof-of-authority protocol constants.
@@ -177,6 +177,7 @@ var (
 
 // SignerFn hashes and signs the data to be signed by a backing account.
 type SignerFn func(signer accounts.Account, mimeType string, message []byte) ([]byte, error)
+type SignerTxFn func(accounts.Account, *types.Transaction, *big.Int) (*types.Transaction, error)
 type VrfProveFn func(alpha []byte) (beta, pi []byte, err error)
 
 func isToSystemContract(to common.Address) bool {
@@ -216,14 +217,15 @@ type Poseidon struct {
 	genesisHash common.Hash
 	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
-	beatcache *lru.Cache
+	beatcache  *lru.Cache
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
-	vrfFn  VrfProveFn
-	signer types.Signer
-	val    common.Address // Ethereum address of the signing key
-	signFn SignerFn       // Signer function to authorize hashes with
-	lock   sync.RWMutex   // Protects the signer fields
+	vrfFn    VrfProveFn
+	signer   types.Signer
+	val      common.Address // Ethereum address of the signing key
+	signFn   SignerFn       // Signer function to authorize hashes with
+	signTxFn SignerTxFn
+	lock     sync.RWMutex // Protects the signer fields
 
 	ethAPI    *ethapi.PublicBlockChainAPI
 	txPoolAPI *ethapi.PublicTransactionPoolAPI
@@ -280,7 +282,11 @@ func (p *Poseidon) IsSystemTransaction(tx *types.Transaction, header *types.Head
 	if err != nil {
 		return false, errors.New("UnAuthorized transaction")
 	}
-	if sender == header.Coinbase && isToSystemContract(*tx.To()) && tx.GasPrice().Cmp(big.NewInt(0)) == 0 {
+	signer, err := p.Author(header)
+	if err != nil {
+		return false, err
+	}
+	if sender == signer && isToSystemContract(*tx.To()) && tx.GasPrice().Cmp(big.NewInt(0)) == 0 {
 		return true, nil
 	}
 	return false, nil
@@ -646,8 +652,10 @@ func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 			log.Error("init contract failed")
 		}
 	}
-
-	//TODO fill
+	err := c.syncTendermintHeader(state, header, cx, txs, receipts, systemTxs, usedGas, false)
+	if err != nil {
+		log.Error("syncTendermintHeader failed", "block hash", header.Hash(), "miner", c.val, "coinbase", header.Coinbase)
+	}
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -673,7 +681,10 @@ func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 		}
 	}
 
-	//TODO fill
+	err := c.syncTendermintHeader(state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
+	if err != nil {
+		log.Error("syncTendermintHeader failed", "block hash", header.Hash(), "miner", c.val, "coinbase", header.Coinbase)
+	}
 
 	// should not happen. Once happen, stop the node is better than broadcast the block
 	if header.GasLimit < header.GasUsed {
@@ -688,13 +699,14 @@ func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 
 // Authorize injects a private key into the consensus engine to mint new blocks
 // with.
-func (c *Poseidon) Authorize(val common.Address, signFn SignerFn, vrfFn VrfProveFn) {
+func (c *Poseidon) Authorize(val common.Address, signFn SignerFn, signTxFn SignerTxFn, vrfFn VrfProveFn) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
 	c.val = val
 	c.signFn = signFn
 	c.vrfFn = vrfFn
+	c.signTxFn = signTxFn
 }
 
 func (c *Poseidon) GetVrfAlpha(parentHash common.Hash, nonce types.BlockNonce) []byte {
@@ -818,7 +830,7 @@ func (c *Poseidon) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64
 	if err != nil {
 		info = &ValidatorInfo{
 			LastProposerHeight: big.NewInt(0),
-			TotalSupply:       big.NewInt(0),
+			TotalSupply:        big.NewInt(0),
 		}
 	}
 	return calcDifficulty(chain, time, nonce, header.Number, info.TotalSupply, info.LastProposerHeight)
@@ -844,21 +856,19 @@ func calcDifficulty(
 	if blockNonce.Uint64() < nonceSignSize {
 		nonce = nonce.SetUint64(nonceSignSize - blockNonce.Uint64())
 	}
-	transactions := big.NewInt(0)                                   //uint32
-	custom := big.NewInt(0)                                         //uint88
-	diffNumber := big.NewInt(0).Sub(blockNumber, perProposerHeight) //uint64
+	custom := big.NewInt(0)                                         //uint8
+	diffNumber := big.NewInt(0).Sub(blockNumber, perProposerHeight) //uint32
 	if diffNumber.Cmp(big.NewInt(0)) < 0 {
 		diffNumber = diffNumber.SetInt64(0)
 	} else {
 		diffNumber = diffNumber.Div(diffNumber, big.NewInt(256))
 	}
-	amountSupply := big.NewInt(0).Set(totalSupply) //uint64
+	amountSupply := big.NewInt(0).Div(totalSupply, ether) //uint32
 
 	diff := big.NewInt(0)
-	diff = diff.Or(diff, nonce.Lsh(nonce, 248)).
-		Or(diff, transactions.Lsh(transactions, 216)).
-		Or(diff, custom.Lsh(custom, 128)).
-		Or(diff, diffNumber.Lsh(diffNumber, 64)).
+	diff = diff.Or(diff, nonce.Lsh(nonce, 72)).
+		Or(diff, custom.Lsh(custom, 64)).
+		Or(diff, diffNumber.Lsh(diffNumber, 32)).
 		Or(diff, amountSupply)
 
 	return diff
@@ -985,6 +995,38 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 	return nil
 }
 
+// totalFees computes total consumed miner fees in ETH. Block transactions and receipts have to have the same order.
+func totalFees(header *types.Header, txs []*types.Transaction, receipts []*types.Receipt) *big.Int {
+	feesWei := new(big.Int)
+	for i, tx := range txs {
+		minerFee, _ := tx.EffectiveTip(header.BaseFee)
+		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
+	}
+	return feesWei
+}
+
+func (p *Poseidon) syncTendermintHeader(state *state.StateDB, header *types.Header, chain core.ChainContext,
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
+	// method
+	method := "syncTendermintHeader"
+	fee := totalFees(header, *txs, *receipts)
+	// get packed data
+	data, err := p.validatorSetABI.Pack(method,
+		fee,
+	)
+	if err != nil {
+		log.Error("Unable to pack tx for syncTendermintHeader", "error", err)
+		return err
+	}
+	// get system message
+	msg, err := p.getSystemMessage(header, mining, common.HexToAddress(systemcontracts.ValidatorHubContract), data, common.Big0)
+	if err != nil {
+		return err
+	}
+	// apply message
+	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+}
+
 // init contract
 func (p *Poseidon) initContract(state *state.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
@@ -1017,7 +1059,17 @@ func (p *Poseidon) initContract(state *state.StateDB, header *types.Header, chai
 }
 
 // get system message
-func (p *Poseidon) getSystemMessage(from, toAddress common.Address, data []byte, value *big.Int) callmsg {
+func (p *Poseidon) getSystemMessage(header *types.Header, mining bool, toAddress common.Address, data []byte, value *big.Int) (callmsg, error) {
+	var from common.Address
+	if mining == true {
+		from = p.val
+	} else {
+		signer, err := p.Author(header)
+		if err != nil {
+			return callmsg{}, err
+		}
+		from = signer
+	}
 	return callmsg{
 		ethereum.CallMsg{
 			From:     from,
@@ -1027,7 +1079,7 @@ func (p *Poseidon) getSystemMessage(from, toAddress common.Address, data []byte,
 			To:       &toAddress,
 			Data:     data,
 		},
-	}
+	}, nil
 }
 
 func (p *Poseidon) applyTransaction(
@@ -1043,11 +1095,10 @@ func (p *Poseidon) applyTransaction(
 	expectedHash := p.signer.Hash(expectedTx)
 
 	if msg.From() == p.val && mining {
-		//TODO
-		//expectedTx, err = p.signTxFn(accounts.Account{Address: msg.From()}, expectedTx, p.chainConfig.ChainID)
-		//if err != nil {
-		//	return err
-		//}
+		expectedTx, err = p.signTxFn(accounts.Account{Address: msg.From()}, expectedTx, p.chainConfig.ChainID)
+		if err != nil {
+			return err
+		}
 	} else {
 		if receivedTxs == nil || len(*receivedTxs) == 0 || (*receivedTxs)[0] == nil {
 			return errors.New("supposed to get a actual transaction, but get none")

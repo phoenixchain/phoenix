@@ -62,6 +62,7 @@ const (
 	validatorBytesLength = common.AddressLength
 
 	nonceSignSize = 255
+	heartRate = 100
 )
 
 // Spos proof-of-authority protocol constants.
@@ -215,6 +216,7 @@ type Poseidon struct {
 	genesisHash common.Hash
 	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
+	beatcache *lru.Cache
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
 	vrfFn  VrfProveFn
@@ -222,7 +224,6 @@ type Poseidon struct {
 	val    common.Address // Ethereum address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
 	lock   sync.RWMutex   // Protects the signer fields
-	beatcache *lru.ARCCache
 
 	ethAPI    *ethapi.PublicBlockChainAPI
 	txPoolAPI *ethapi.PublicTransactionPoolAPI
@@ -248,7 +249,7 @@ func New(
 	if err != nil {
 		panic(err)
 	}
-	beatCache, err := lru.NewARC(1)
+	beatCache, err := lru.New(1)
 	if err != nil {
 		panic(err)
 	}
@@ -949,7 +950,7 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 	}
 	perProposerHeight := info.LastProposerHeight.Uint64()
 
-	if (currentHeight < perProposerHeight) || (currentHeight - perProposerHeight) < 15 {
+	if (currentHeight < perProposerHeight) || (currentHeight - perProposerHeight) < heartRate {
 		return nil
 	}
 

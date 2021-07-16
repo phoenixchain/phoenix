@@ -137,4 +137,6 @@ type PoSA interface {
 	IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error)
 	IsSystemContract(to *common.Address) bool
 	//EnoughDistance(chain ChainReader, header *types.Header) bool
+
+	GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int) *types.TransactionsByPriceAndNonce
 }

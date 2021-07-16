@@ -1011,6 +1011,13 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 	}
+	spos, isPoSA := w.engine.(consensus.PoSA)
+	if isPoSA {
+		txs := spos.GetSystemTransaction(w.current.signer, w.current.state, header.BaseFee)
+		if w.commitTransactions(txs, w.coinbase, interrupt) {
+			return
+		}
+	}
 	w.commit(uncles, w.fullTaskHook, true, tstart)
 }
 

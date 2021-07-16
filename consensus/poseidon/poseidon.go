@@ -33,6 +33,7 @@ import (
 	"io"
 	"math"
 	"math/big"
+	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -274,6 +275,7 @@ func (p *Poseidon) SetTxPoolAPI(txPoolAPI *ethapi.PublicTransactionPoolAPI) {
 }
 
 func (p *Poseidon) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
+	return false, nil
 	// deploy a contract
 	if tx.To() == nil {
 		return false, nil
@@ -864,12 +866,14 @@ func calcDifficulty(
 		diffNumber = diffNumber.Div(diffNumber, big.NewInt(256))
 	}
 	amountSupply := big.NewInt(0).Div(totalSupply, ether) //uint32
+	randNonce := big.NewInt(rand.Int63n(nonceSignSize))   //uint8
 
 	diff := big.NewInt(0)
-	diff = diff.Or(diff, nonce.Lsh(nonce, 72)).
-		Or(diff, custom.Lsh(custom, 64)).
-		Or(diff, diffNumber.Lsh(diffNumber, 32)).
-		Or(diff, amountSupply)
+	diff = diff.Or(diff, nonce.Lsh(nonce, 80)).
+		Or(diff, custom.Lsh(custom, 72)).
+		Or(diff, diffNumber.Lsh(diffNumber, 40)).
+		Or(diff, amountSupply.Lsh(amountSupply, 8)).
+		Or(diff, randNonce)
 
 	return diff
 }
@@ -960,7 +964,7 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 	}
 	perProposerHeight := info.LastProposerHeight.Uint64()
 
-	if (currentHeight < perProposerHeight) || (currentHeight - perProposerHeight) < heartRate {
+	if (currentHeight < perProposerHeight) || (currentHeight-perProposerHeight) < heartRate {
 		return nil
 	}
 
@@ -1008,6 +1012,7 @@ func totalFees(header *types.Header, txs []*types.Transaction, receipts []*types
 func (p *Poseidon) syncTendermintHeader(state *state.StateDB, header *types.Header, chain core.ChainContext,
 	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
 	// method
+	return nil
 	method := "syncTendermintHeader"
 	fee := totalFees(header, *txs, *receipts)
 	// get packed data
@@ -1192,4 +1197,29 @@ func applyMessage(
 		log.Error("apply message failed", "msg", string(ret), "err", err)
 	}
 	return msg.Gas() - returnGas, err
+}
+
+func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int) *types.TransactionsByPriceAndNonce {
+	nonce := state.GetNonce(p.val)
+
+	method := "syncTendermintHeader"
+	fee := big.NewInt(0)
+	// get packed data
+	data, err := p.validatorSetABI.Pack(method,
+		fee,
+	)
+	if err != nil {
+		log.Error("syncTendermintHeader build data fail", "err", err)
+	}
+	tx := types.NewTransaction(nonce, common.HexToAddress(systemcontracts.ValidatorHubContract), common.Big0, 12000000, big.NewInt(0), data)
+	//signtx
+	expectedTx, err := p.signTxFn(accounts.Account{Address: p.val}, tx, p.chainConfig.ChainID)
+	if err != nil {
+		log.Error("syncTendermintHeader build tx fail", "err", err)
+	}
+
+	txs := make(map[common.Address]types.Transactions)
+	txs[p.val] = types.Transactions{expectedTx}
+
+	return types.NewTransactionsByPriceAndNonce(signer, txs, baseFee)
 }

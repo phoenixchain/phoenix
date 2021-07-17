@@ -59,7 +59,7 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		Coinbase:    beneficiary,
 		BlockNumber: new(big.Int).Set(header.Number),
 		Time:        new(big.Int).SetUint64(header.Time),
-		Difficulty:  new(big.Int).SetUint64(0), //header.Difficulty
+		Difficulty:  new(big.Int).SetUint64(header.Time), //Unsupported
 		BaseFee:     baseFee,
 		GasLimit:    header.GasLimit,
 	}

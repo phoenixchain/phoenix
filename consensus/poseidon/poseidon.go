@@ -852,14 +852,14 @@ func calcDifficulty(
 	blockNonce types.BlockNonce,
 	blockNumber *big.Int,
 	totalSupply *big.Int,
-	perProposerHeight *big.Int,
+	lastBlockHeight *big.Int,
 ) *big.Int {
 	nonce := big.NewInt(0) //uint8
 	if blockNonce.Uint64() < nonceSignSize {
 		nonce = nonce.SetUint64(nonceSignSize - blockNonce.Uint64())
 	}
-	custom := big.NewInt(0)                                         //uint8
-	diffNumber := big.NewInt(0).Sub(blockNumber, perProposerHeight) //uint32
+	custom := big.NewInt(0)                                       //uint8
+	diffNumber := big.NewInt(0).Sub(blockNumber, lastBlockHeight) //uint32
 	if diffNumber.Cmp(big.NewInt(0)) < 0 {
 		diffNumber = diffNumber.SetInt64(0)
 	} else {
@@ -968,9 +968,9 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 	if err != nil {
 		return err
 	}
-	perProposerHeight := info.LastBlockHeight.Uint64()
+	lastBlockHeight := info.LastBlockHeight.Uint64()
 
-	if (currentHeight < perProposerHeight) || (currentHeight-perProposerHeight) < heartRate {
+	if (currentHeight < lastBlockHeight) || (currentHeight-lastBlockHeight) < heartRate {
 		return nil
 	}
 

@@ -298,7 +298,7 @@ const validatorSetABI = `
 			},
 			{
 				"internalType": "uint256",
-				"name": "lastProposerHeight",
+				"name": "lastBlockHeight",
 				"type": "uint256"
 			}
 		],

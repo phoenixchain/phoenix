@@ -730,7 +730,7 @@ func (c *Poseidon) sortition(chain consensus.ChainHeaderReader, header *types.He
 		return false, nil
 	}
 	// Set the correct difficulty
-	header.Difficulty = calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.LastProposerHeight)
+	header.Difficulty = calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.LastBlockHeight)
 
 	// Sign all the things!
 	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypePoseidon, PoseidonRLP(header, c.chainConfig.ChainID))
@@ -831,15 +831,15 @@ func (c *Poseidon) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64
 	info, err := c.GetValidatorInfo(c.val, header.Number)
 	if err != nil {
 		info = &ValidatorInfo{
-			LastProposerHeight: big.NewInt(0),
-			TotalSupply:        big.NewInt(0),
+			LastBlockHeight: big.NewInt(0),
+			TotalSupply:     big.NewInt(0),
 		}
 	}
-	return calcDifficulty(chain, time, nonce, header.Number, info.TotalSupply, info.LastProposerHeight)
+	return calcDifficulty(chain, time, nonce, header.Number, info.TotalSupply, info.LastBlockHeight)
 }
 
 func (c *Poseidon) checkDifficulty(chain consensus.ChainHeaderReader, header *types.Header, info *ValidatorInfo) error {
-	diff := calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.LastProposerHeight)
+	diff := calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.LastBlockHeight)
 	if diff.Cmp(header.Difficulty) != 0 {
 		return errInvalidDifficulty
 	}
@@ -968,7 +968,7 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 	if err != nil {
 		return err
 	}
-	perProposerHeight := info.LastProposerHeight.Uint64()
+	perProposerHeight := info.LastBlockHeight.Uint64()
 
 	if (currentHeight < perProposerHeight) || (currentHeight-perProposerHeight) < heartRate {
 		return nil

@@ -13,10 +13,10 @@ import (
 )
 
 type ValidatorInfo struct {
-	Name              string
-	RewardAddr        common.Address
-	TotalSupply       *big.Int
-	LastProposerHeight *big.Int
+	Name            string
+	RewardAddr      common.Address
+	TotalSupply     *big.Int
+	LastBlockHeight *big.Int
 }
 
 // ==========================  interaction with contract/account =========

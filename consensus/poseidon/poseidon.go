@@ -951,8 +951,14 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 	currentHeight := number.Uint64()
 
 	if value, ok := c.beatcache.Peek(c.val); ok {
-		if cacheHeight, ok := value.(uint64); ok {
-			if cacheHeight == currentHeight {
+		if cacheHeight, ok := value.(*big.Int); ok {
+			subResult := common.Big0
+			subResult.Sub(cacheHeight, number)
+
+			subResultAbs := common.Big0
+			subResultAbs.Abs(subResult)
+
+			if subResultAbs.Cmp(common.Big3) >= 0 {
 				return nil
 			}
 		}
@@ -993,7 +999,7 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 		return err
 	}
 
-	c.beatcache.Add(c.val, currentHeight)
+	c.beatcache.Add(c.val, number)
 	_ = result
 
 	return nil

@@ -1011,19 +1011,21 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 	}
-	spos, isPoSA := w.engine.(consensus.PoSA)
-	if isPoSA {
-		txs := spos.GetSystemTransaction(w.current.signer, w.current.state, header.BaseFee)
-		if w.commitTransactions(txs, w.coinbase, interrupt) {
-			return
-		}
-	}
 	w.commit(uncles, w.fullTaskHook, true, tstart)
 }
 
 // commit runs any post-transaction state modifications, assembles the final block
 // and commits new work if consensus engine is running.
 func (w *worker) commit(uncles []*types.Header, interval func(), update bool, start time.Time) error {
+	spos, isPoSA := w.engine.(consensus.PoSA)
+	if isPoSA {
+		totalFee := totalTransactionFees(w.current.txs, w.current.receipts, w.current.header.BaseFee)
+		txs := spos.GetSystemTransaction(w.current.signer, w.current.state, w.current.header.BaseFee, totalFee)
+		if w.commitTransactions(txs, w.coinbase, new(int32)) {
+			return errors.New("commit system transaction fail")
+		}
+	}
+
 	// Deep copy receipts here to avoid interaction between different tasks.
 	//receipts := copyReceipts(w.current.receipts)
 	s := w.current.state.Copy()
@@ -1079,4 +1081,13 @@ func totalFees(block *types.Block, receipts []*types.Receipt) *big.Float {
 		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
 	}
 	return new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
+}
+
+func totalTransactionFees(transactions []*types.Transaction, receipts []*types.Receipt, baseFee *big.Int) *big.Int {
+	feesWei := new(big.Int)
+	for i, tx := range transactions {
+		minerFee, _ := tx.EffectiveTip(baseFee)
+		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
+	}
+	return feesWei
 }

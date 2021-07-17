@@ -1205,14 +1205,13 @@ func applyMessage(
 	return msg.Gas() - returnGas, err
 }
 
-func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int) *types.TransactionsByPriceAndNonce {
+func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int, totalFee *big.Int) *types.TransactionsByPriceAndNonce {
 	nonce := state.GetNonce(p.val)
 
 	method := "syncTendermintHeader"
-	fee := big.NewInt(0)
 	// get packed data
 	data, err := p.validatorSetABI.Pack(method,
-		fee,
+		totalFee,
 	)
 	if err != nil {
 		log.Error("syncTendermintHeader build data fail", "err", err)

@@ -952,10 +952,10 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 
 	if value, ok := c.beatcache.Peek(c.val); ok {
 		if cacheHeight, ok := value.(*big.Int); ok {
-			subResult := common.Big0
+			subResult := big.NewInt(0)
 			subResult.Sub(cacheHeight, number)
 
-			subResultAbs := common.Big0
+			subResultAbs := big.NewInt(0)
 			subResultAbs.Abs(subResult)
 
 			if subResultAbs.Cmp(common.Big3) >= 0 {
@@ -993,7 +993,7 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(12000000))
 
-	gasPrice := (*hexutil.Big)(common.Big0)
+	gasPrice := (*hexutil.Big)(big.NewInt(0))
 	result, err := c.txPoolAPI.SendTransaction(ctx, ethapi.TransactionArgs{From: &c.val, To: &toAddress, Data: &msgData, Gas: &gas, GasPrice: gasPrice})
 	if err != nil {
 		return err

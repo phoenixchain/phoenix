@@ -19,17 +19,15 @@ package core
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/core/systemcontracts"
-	"math"
-	"math/big"
-	"strings"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	cmath "github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
+	"math"
+	"math/big"
 )
 
 /*
@@ -333,8 +331,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 }
 
 func (st *StateTransition) refundGas(refundQuotient uint64) {
-	// heartbeatCall, 0 fee
-	if st.heartbeatCall() {
+	// systemTransition, 0 fee
+	if st.isSystemTransition() {
 		refund := st.gasUsed()
 		st.gas += refund
 
@@ -366,30 +364,19 @@ func (st *StateTransition) gasUsed() uint64 {
 	return st.initialGas - st.gas
 }
 
-func (st *StateTransition) heartbeatCall() bool {
+func (st *StateTransition) isSystemTransition() bool {
 	systemAddr := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	msgTo := st.msg.To()
+	data := st.msg.Data()
 
 	if bytes.Compare(msgTo[:], systemAddr[:]) != 0 {
 		return false
 	}
-
-	// method
-	method := "slash"
-
-	validatorSetABI, err := abi.JSON(strings.NewReader(systemcontracts.ValidatorSetABI()))
-	if err != nil {
-		return false
-	}
-	uppackData := st.msg.Data()
-	unpacked, err := validatorSetABI.Unpack(method, uppackData)
-	if err != nil {
-		return false
-	}
-
-	if unpacked == nil {
+	if len(data) == 36 && hexutil.Encode(data[:4]) == "0xc96be4cb" { //slash(address)
 		return true
 	}
-
+	if len(data) == 36 && hexutil.Encode(data[:4]) == "0xffd8136e" { //syncTendermintHeader(uint256)
+		return true
+	}
 	return false
 }

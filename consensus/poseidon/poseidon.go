@@ -1215,7 +1215,7 @@ func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateD
 	if err != nil {
 		log.Error("syncTendermintHeader build data fail", "err", err)
 	}
-	tx := types.NewTransaction(nonce, common.HexToAddress(systemcontracts.ValidatorHubContract), common.Big0, 12000000, big.NewInt(0), data)
+	tx := types.NewTransaction(nonce, common.HexToAddress(systemcontracts.ValidatorHubContract), common.Big0, 100000, big.NewInt(0), data)
 	//signtx
 	expectedTx, err := p.signTxFn(accounts.Account{Address: p.val}, tx, p.chainConfig.ChainID)
 	if err != nil {

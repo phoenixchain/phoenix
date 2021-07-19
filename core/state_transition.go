@@ -365,13 +365,17 @@ func (st *StateTransition) gasUsed() uint64 {
 }
 
 func (st *StateTransition) isSystemTransition() bool {
-	systemAddr := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	msgTo := st.msg.To()
-	data := st.msg.Data()
+	if msgTo == nil {
+		return false
+	}
 
+	systemAddr := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	if bytes.Compare(msgTo[:], systemAddr[:]) != 0 {
 		return false
 	}
+
+	data := st.msg.Data()
 	if len(data) == 36 && hexutil.Encode(data[:4]) == "0xc96be4cb" { //slash(address)
 		return true
 	}

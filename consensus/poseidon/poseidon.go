@@ -248,7 +248,7 @@ func New(
 	// Allocate the snapshot caches and create the engine
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
-	vABI, err := abi.JSON(strings.NewReader(validatorSetABI))
+	vABI, err := abi.JSON(strings.NewReader(systemcontracts.ValidatorSetABI()))
 	if err != nil {
 		panic(err)
 	}
@@ -991,10 +991,10 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 	// call
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
-	gas := (hexutil.Uint64)(uint64(12000000))
+	gas := (hexutil.Uint64)(uint64(1000000))
 
-	gasPrice := (*hexutil.Big)(big.NewInt(0))
-	result, err := c.txPoolAPI.SendTransaction(ctx, ethapi.TransactionArgs{From: &c.val, To: &toAddress, Data: &msgData, Gas: &gas, GasPrice: gasPrice})
+	//gasPrice := (*hexutil.Big)(big.NewInt(0))
+	result, err := c.txPoolAPI.SendTransaction(ctx, ethapi.TransactionArgs{From: &c.val, To: &toAddress, Data: &msgData, Gas: &gas})
 	if err != nil {
 		return err
 	}

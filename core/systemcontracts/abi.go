@@ -1,4 +1,4 @@
-package poseidon
+package systemcontracts
 
 const validatorSetABI = `
 [
@@ -593,3 +593,7 @@ const validatorSetABI = `
 	}
 ]
 `
+
+func ValidatorSetABI() string {
+	return validatorSetABI
+}

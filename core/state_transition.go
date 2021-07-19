@@ -17,9 +17,13 @@
 package core
 
 import (
+	"bytes"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"math"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
@@ -329,6 +333,18 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 }
 
 func (st *StateTransition) refundGas(refundQuotient uint64) {
+	// heartbeatCall, 0 fee
+	if st.heartbeatCall() {
+		refund := st.gasUsed()
+		st.gas += refund
+
+		// Return ETH for remaining gas, exchanged at the original rate.
+		remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
+		st.state.AddBalance(st.msg.From(), remaining)
+
+		return
+	}
+
 	// Apply refund counter, capped to a refund quotient
 	refund := st.gasUsed() / refundQuotient
 	if refund > st.state.GetRefund() {
@@ -348,4 +364,32 @@ func (st *StateTransition) refundGas(refundQuotient uint64) {
 // gasUsed returns the amount of gas used up by the state transition.
 func (st *StateTransition) gasUsed() uint64 {
 	return st.initialGas - st.gas
+}
+
+func (st *StateTransition) heartbeatCall() bool {
+	systemAddr := common.HexToAddress(systemcontracts.ValidatorHubContract)
+	msgTo := st.msg.To()
+
+	if bytes.Compare(msgTo[:], systemAddr[:]) != 0 {
+		return false
+	}
+
+	// method
+	method := "slash"
+
+	validatorSetABI, err := abi.JSON(strings.NewReader(systemcontracts.ValidatorSetABI()))
+	if err != nil {
+		return false
+	}
+	uppackData := st.msg.Data()
+	unpacked, err := validatorSetABI.Unpack(method, uppackData)
+	if err != nil {
+		return false
+	}
+
+	if unpacked == nil {
+		return true
+	}
+
+	return false
 }

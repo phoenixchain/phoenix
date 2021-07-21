@@ -331,23 +331,18 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 }
 
 func (st *StateTransition) refundGas(refundQuotient uint64) {
-	// systemTransition, 0 fee
+	var refund uint64
 	if st.isSystemTransition() {
-		refund := st.gasUsed()
-		st.gas += refund
-
-		// Return ETH for remaining gas, exchanged at the original rate.
-		remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
-		st.state.AddBalance(st.msg.From(), remaining)
-
-		return
+		// systemTransition, 0 fee
+		refund = st.gasUsed()
+	} else {
+		// Apply refund counter, capped to a refund quotient
+		refund = st.gasUsed() / refundQuotient
+		if refund > st.state.GetRefund() {
+			refund = st.state.GetRefund()
+		}
 	}
 
-	// Apply refund counter, capped to a refund quotient
-	refund := st.gasUsed() / refundQuotient
-	if refund > st.state.GetRefund() {
-		refund = st.state.GetRefund()
-	}
 	st.gas += refund
 
 	// Return ETH for remaining gas, exchanged at the original rate.

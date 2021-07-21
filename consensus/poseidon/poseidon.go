@@ -33,7 +33,6 @@ import (
 	"io"
 	"math"
 	"math/big"
-	"math/rand"
 	"strings"
 	"sync"
 	"time"
@@ -568,9 +567,6 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 	if err != nil {
 		return err
 	}
-	if err := c.checkDifficulty(chain, header, info); err != nil {
-		return err
-	}
 	pi := make([]byte, extraVrf)
 	copy(header.Extra[len(header.Extra)-extraSeal-extraVrf:len(header.Extra)-extraSeal], pi)
 
@@ -581,6 +577,9 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 	}
 	beta, err := vrf.Verify(publicKey, alpha, pi)
 	if err != nil {
+		return err
+	}
+	if err := c.checkDifficulty(chain, header, info, beta); err != nil {
 		return err
 	}
 	if c.verifySort(info.TotalSupply, committeeSupply, header.Number, beta) == false {
@@ -730,7 +729,7 @@ func (c *Poseidon) sortition(chain consensus.ChainHeaderReader, header *types.He
 		return false, nil
 	}
 	// Set the correct difficulty
-	header.Difficulty = calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.LastBlockHeight)
+	header.Difficulty = calcDifficulty(header.Nonce, header.Number, info.TotalSupply, info.LastBlockHeight, beta)
 
 	// Sign all the things!
 	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypePoseidon, PoseidonRLP(header, c.chainConfig.ChainID))
@@ -835,11 +834,11 @@ func (c *Poseidon) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64
 			TotalSupply:     big.NewInt(0),
 		}
 	}
-	return calcDifficulty(chain, time, nonce, header.Number, info.TotalSupply, info.LastBlockHeight)
+	return calcDifficulty(nonce, header.Number, info.TotalSupply, info.LastBlockHeight, make([]byte, 32))
 }
 
-func (c *Poseidon) checkDifficulty(chain consensus.ChainHeaderReader, header *types.Header, info *ValidatorInfo) error {
-	diff := calcDifficulty(chain, header.Time, header.Nonce, header.Number, info.TotalSupply, info.LastBlockHeight)
+func (c *Poseidon) checkDifficulty(chain consensus.ChainHeaderReader, header *types.Header, info *ValidatorInfo, beta []byte) error {
+	diff := calcDifficulty(header.Nonce, header.Number, info.TotalSupply, info.LastBlockHeight, beta)
 	if diff.Cmp(header.Difficulty) != 0 {
 		return errInvalidDifficulty
 	}
@@ -847,12 +846,11 @@ func (c *Poseidon) checkDifficulty(chain consensus.ChainHeaderReader, header *ty
 }
 
 func calcDifficulty(
-	chain consensus.ChainHeaderReader,
-	time uint64,
 	blockNonce types.BlockNonce,
 	blockNumber *big.Int,
 	totalSupply *big.Int,
 	lastBlockHeight *big.Int,
+	beta []byte,
 ) *big.Int {
 	nonce := big.NewInt(0) //uint8
 	if blockNonce.Uint64() < nonceSignSize {
@@ -866,14 +864,14 @@ func calcDifficulty(
 		diffNumber = diffNumber.Div(diffNumber, big.NewInt(256))
 	}
 	amountSupply := big.NewInt(0).Div(totalSupply, ether) //uint32
-	randNonce := big.NewInt(rand.Int63n(nonceSignSize))   //uint8
+	randBeta := big.NewInt(0).SetBytes(beta[:1])          //uint8
 
 	diff := big.NewInt(0)
 	diff = diff.Or(diff, nonce.Lsh(nonce, 80)).
 		Or(diff, custom.Lsh(custom, 72)).
 		Or(diff, diffNumber.Lsh(diffNumber, 40)).
 		Or(diff, amountSupply.Lsh(amountSupply, 8)).
-		Or(diff, randNonce)
+		Or(diff, randBeta)
 
 	return diff
 }
@@ -1215,7 +1213,7 @@ func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateD
 	if err != nil {
 		log.Error("syncTendermintHeader build data fail", "err", err)
 	}
-	tx := types.NewTransaction(nonce, common.HexToAddress(systemcontracts.ValidatorHubContract), common.Big0, 100000, big.NewInt(0), data)
+	tx := types.NewTransaction(nonce, common.HexToAddress(systemcontracts.ValidatorHubContract), common.Big0, 200000, big.NewInt(0), data)
 	//signtx
 	expectedTx, err := p.signTxFn(accounts.Account{Address: p.val}, tx, p.chainConfig.ChainID)
 	if err != nil {

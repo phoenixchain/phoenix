@@ -956,7 +956,7 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 			subResultAbs := big.NewInt(0)
 			subResultAbs.Abs(subResult)
 
-			if subResultAbs.Cmp(common.Big3) >= 0 {
+			if subResultAbs.Cmp(common.Big3) <= 0 {
 				return nil
 			}
 		}

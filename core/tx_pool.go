@@ -18,6 +18,7 @@ package core
 
 import (
 	"errors"
+	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"math"
 	"math/big"
 	"sort"
@@ -850,6 +851,10 @@ func (pool *TxPool) addTxs(txs []*types.Transaction, local, sync bool) []error {
 		news = make([]*types.Transaction, 0, len(txs))
 	)
 	for i, tx := range txs {
+		if systemcontracts.IsSyncHeaderTransition(tx.To(), tx.Data()) {
+			errs[i] = nil
+			continue
+		}
 		// If the transaction is known, pre-set the error slot
 		if pool.all.Get(tx.Hash()) != nil {
 			errs[i] = ErrAlreadyKnown
@@ -899,6 +904,10 @@ func (pool *TxPool) addTxsLocked(txs []*types.Transaction, local bool) ([]error,
 	dirty := newAccountSet(pool.signer)
 	errs := make([]error, len(txs))
 	for i, tx := range txs {
+		if systemcontracts.IsSyncHeaderTransition(tx.To(), tx.Data()) {
+			errs[i] = nil
+			continue
+		}
 		replaced, err := pool.add(tx, local)
 		errs[i] = err
 		if err == nil && !replaced {

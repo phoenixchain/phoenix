@@ -332,7 +332,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 func (st *StateTransition) refundGas(refundQuotient uint64) {
 	var refund uint64
-	if st.isSystemTransition() {
+	if systemcontracts.IsSystemTransition(st.msg.To(), st.msg.Data()) {
 		// systemTransition, 0 fee
 		refund = st.gasUsed()
 	} else {

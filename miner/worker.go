@@ -213,6 +213,10 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 		resubmitIntervalCh: make(chan time.Duration),
 		resubmitAdjustCh:   make(chan *intervalAdjust, resubmitAdjustChanSize),
 	}
+	if _, isPoSA := engine.(consensus.PoSA); isPoSA {
+		worker.disablePreseal()
+	}
+
 	// Subscribe NewTxsEvent for tx pool
 	worker.txsSub = eth.TxPool().SubscribeNewTxsEvent(worker.txsCh)
 	// Subscribe events for blockchain
@@ -574,7 +578,6 @@ func (w *worker) taskLoop() {
 			w.pendingTasks[sealHash] = task
 			w.pendingMu.Unlock()
 
-
 			if err := w.engine.Seal(w.chain, task.block, w.resultCh, stopCh); err != nil {
 				log.Warn("Block sealing failed", "err", err)
 			}
@@ -709,7 +712,7 @@ func (w *worker) commitUncle(env *environment, uncle *types.Header) error {
 }
 
 // updateSnapshot updates pending snapshot block and state.
-// Note this function assumes the current variable is thread safe.
+// Note this function assumes the current variable is thread safe .
 func (w *worker) updateSnapshot() {
 	w.snapshotMu.Lock()
 	defer w.snapshotMu.Unlock()

@@ -50,7 +50,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
-	lru "github.com/hashicorp/golang-lru"
+	"github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -594,9 +594,6 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 	if c.vrfFn == nil {
 		return errInvalidVrfFn
 	}
-	if isProposer, err := c.IsProposer(c.val, header.Number); err != nil || isProposer == false {
-		return errUnauthorizedProposer
-	}
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
 	header.Nonce = types.BlockNonce{}
 
@@ -744,6 +741,9 @@ func (c *Poseidon) sortition(chain consensus.ChainHeaderReader, header *types.He
 // the local signing credentials.
 func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	header := block.Header()
+	if isProposer, err := c.IsProposer(c.val, header.Number); err != nil || isProposer == false {
+		return errUnauthorizedProposer
+	}
 
 	info, err := c.GetValidatorInfo(c.val, header.Number)
 	if err != nil {
@@ -951,12 +951,9 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 	if value, ok := c.beatcache.Peek(c.val); ok {
 		if cacheHeight, ok := value.(*big.Int); ok {
 			subResult := big.NewInt(0)
-			subResult.Sub(cacheHeight, number)
+			subResult.Sub(number, cacheHeight).Abs(subResult)
 
-			subResultAbs := big.NewInt(0)
-			subResultAbs.Abs(subResult)
-
-			if subResultAbs.Cmp(common.Big3) <= 0 {
+			if subResult.Cmp(common.Big3) <= 0 {
 				return nil
 			}
 		}

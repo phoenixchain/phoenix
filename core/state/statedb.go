@@ -901,6 +901,10 @@ func (s *StateDB) Prepare(thash, bhash common.Hash, ti int) {
 	s.accessList = newAccessList()
 }
 
+func (s *StateDB) ClearAccessList() {
+	s.accessList = newAccessList()
+}
+
 func (s *StateDB) clearJournalAndRefund() {
 	if len(s.journal.entries) > 0 {
 		s.journal = newJournal()

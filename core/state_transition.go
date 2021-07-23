@@ -17,10 +17,8 @@
 package core
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -357,25 +355,4 @@ func (st *StateTransition) refundGas(refundQuotient uint64) {
 // gasUsed returns the amount of gas used up by the state transition.
 func (st *StateTransition) gasUsed() uint64 {
 	return st.initialGas - st.gas
-}
-
-func (st *StateTransition) isSystemTransition() bool {
-	msgTo := st.msg.To()
-	if msgTo == nil {
-		return false
-	}
-
-	systemAddr := common.HexToAddress(systemcontracts.ValidatorHubContract)
-	if bytes.Compare(msgTo[:], systemAddr[:]) != 0 {
-		return false
-	}
-
-	data := st.msg.Data()
-	if len(data) == 36 && hexutil.Encode(data[:4]) == "0xc96be4cb" { //slash(address)
-		return true
-	}
-	if len(data) == 36 && hexutil.Encode(data[:4]) == "0xffd8136e" { //syncTendermintHeader(uint256)
-		return true
-	}
-	return false
 }

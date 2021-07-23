@@ -742,6 +742,7 @@ func (w *worker) updateSnapshot() {
 		trie.NewStackTrie(nil),
 	)
 	w.snapshotState = w.current.state.Copy()
+	w.snapshotState.ClearAccessList()
 }
 
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address) ([]*types.Log, error) {
@@ -995,6 +996,14 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		return
 	}
 	delete(pending, w.coinbase) //Delete my pending transactions
+
+	spos, isPoSA := w.engine.(consensus.PoSA)
+	if isPoSA {
+		txs := spos.GetSystemTransaction(w.current.signer, w.current.state, w.current.header.BaseFee, big.NewInt(0))
+		if w.commitTransactions(txs, w.coinbase, new(int32)) {
+			return
+		}
+	}
 	// Split the pending transactions into locals and remotes
 	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
 	for _, account := range w.eth.TxPool().Locals() {
@@ -1021,15 +1030,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 // commit runs any post-transaction state modifications, assembles the final block
 // and commits new work if consensus engine is running.
 func (w *worker) commit(uncles []*types.Header, interval func(), update bool, start time.Time) error {
-	spos, isPoSA := w.engine.(consensus.PoSA)
-	if isPoSA {
-		totalFee := totalTransactionFees(w.current.txs, w.current.receipts, w.current.header.BaseFee)
-		txs := spos.GetSystemTransaction(w.current.signer, w.current.state, w.current.header.BaseFee, totalFee)
-		if w.commitTransactions(txs, w.coinbase, new(int32)) {
-			return errors.New("commit system transaction fail")
-		}
-	}
-
 	// Deep copy receipts here to avoid interaction between different tasks.
 	//receipts := copyReceipts(w.current.receipts)
 	s := w.current.state.Copy()
@@ -1085,13 +1085,4 @@ func totalFees(block *types.Block, receipts []*types.Receipt) *big.Float {
 		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
 	}
 	return new(big.Float).Quo(new(big.Float).SetInt(feesWei), new(big.Float).SetInt(big.NewInt(params.Ether)))
-}
-
-func totalTransactionFees(transactions []*types.Transaction, receipts []*types.Receipt, baseFee *big.Int) *big.Int {
-	feesWei := new(big.Int)
-	for i, tx := range transactions {
-		minerFee, _ := tx.EffectiveTip(baseFee)
-		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
-	}
-	return feesWei
 }

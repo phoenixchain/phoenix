@@ -650,10 +650,6 @@ func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Hea
 			log.Error("init contract failed")
 		}
 	}
-	err := c.syncTendermintHeader(state, header, cx, txs, receipts, systemTxs, usedGas, false)
-	if err != nil {
-		log.Error("syncTendermintHeader failed", "block hash", header.Hash(), "miner", c.val, "coinbase", header.Coinbase)
-	}
 
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -677,11 +673,6 @@ func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 		if err != nil {
 			log.Error("init contract failed")
 		}
-	}
-
-	err := c.syncTendermintHeader(state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
-	if err != nil {
-		log.Error("syncTendermintHeader failed", "block hash", header.Hash(), "miner", c.val, "coinbase", header.Coinbase)
 	}
 
 	// should not happen. Once happen, stop the node is better than broadcast the block
@@ -1007,29 +998,6 @@ func totalFees(header *types.Header, txs []*types.Transaction, receipts []*types
 		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
 	}
 	return feesWei
-}
-
-func (p *Poseidon) syncTendermintHeader(state *state.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
-	// method
-	return nil
-	method := "syncTendermintHeader"
-	fee := totalFees(header, *txs, *receipts)
-	// get packed data
-	data, err := p.validatorSetABI.Pack(method,
-		fee,
-	)
-	if err != nil {
-		log.Error("Unable to pack tx for syncTendermintHeader", "error", err)
-		return err
-	}
-	// get system message
-	msg, err := p.getSystemMessage(header, mining, common.HexToAddress(systemcontracts.ValidatorHubContract), data, common.Big0)
-	if err != nil {
-		return err
-	}
-	// apply message
-	return p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
 
 // init contract

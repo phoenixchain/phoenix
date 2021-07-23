@@ -1106,7 +1106,7 @@ func totalFees(block *types.Block, receipts []*types.Receipt) *big.Float {
 func totalTransactionFees(transactions []*types.Transaction, receipts []*types.Receipt, baseFee *big.Int) *big.Int {
 	feesWei := new(big.Int)
 	for i, tx := range transactions {
-		minerFee, _ := tx.EffectiveTip(baseFee)
+		minerFee, _ := tx.EffectiveGasTip(baseFee)
 		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
 	}
 	return feesWei

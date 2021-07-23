@@ -1003,7 +1003,7 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 func totalFees(header *types.Header, txs []*types.Transaction, receipts []*types.Receipt) *big.Int {
 	feesWei := new(big.Int)
 	for i, tx := range txs {
-		minerFee, _ := tx.EffectiveTip(header.BaseFee)
+		minerFee, _ := tx.EffectiveGasTip(header.BaseFee)
 		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
 	}
 	return feesWei
@@ -1116,7 +1116,7 @@ func (p *Poseidon) applyTransaction(
 		// move to next
 		*receivedTxs = (*receivedTxs)[1:]
 	}
-	state.Prepare(expectedTx.Hash(), common.Hash{}, len(*txs))
+	//state.Prepare(expectedTx.Hash(), common.Hash{}, len(*txs))
 	gasUsed, err := applyMessage(msg, state, header, p.chainConfig, chainContext)
 	if err != nil {
 		return err
@@ -1134,9 +1134,9 @@ func (p *Poseidon) applyTransaction(
 	receipt.GasUsed = gasUsed
 
 	// Set the receipt logs and create a bloom for filtering
-	receipt.Logs = state.GetLogs(expectedTx.Hash())
+	//receipt.Logs = state.GetLogs(expectedTx.Hash())
 	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-	receipt.BlockHash = state.BlockHash()
+	//receipt.BlockHash = state.BlockHash()
 	receipt.BlockNumber = header.Number
 	receipt.TransactionIndex = uint(state.TxIndex())
 	*receipts = append(*receipts, receipt)

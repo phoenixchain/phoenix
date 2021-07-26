@@ -87,7 +87,7 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header) *big.Int {
 
 		return math.BigMax(
 			x.Sub(parent.BaseFee, baseFeeDelta),
-			common.Big0,
+			new(big.Int).SetUint64(params.MinBaseFee),
 		)
 	}
 }

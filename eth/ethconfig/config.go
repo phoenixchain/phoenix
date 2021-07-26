@@ -89,7 +89,7 @@ var Defaults = Config{
 	TxPool:      core.DefaultTxPoolConfig,
 	RPCGasCap:   25000000,
 	GPO:         FullNodeGPO,
-	RPCTxFeeCap: 1, // 1 ether
+	RPCTxFeeCap: 10, // 10 ether
 }
 
 func init() {

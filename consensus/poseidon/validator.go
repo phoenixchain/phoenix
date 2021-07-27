@@ -13,10 +13,10 @@ import (
 )
 
 type ValidatorInfo struct {
-	Name            string
-	RewardAddr      common.Address
-	TotalSupply     *big.Int
-	LastBlockHeight *big.Int
+	Name            string         `json:"name"`
+	RewardAddr      common.Address `json:"reward_addr"`
+	TotalSupply     *big.Int       `json:"total_supply"`
+	LastBlockHeight *big.Int       `json:"last_block_height"`
 }
 
 // ==========================  interaction with contract/account =========

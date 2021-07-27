@@ -69,11 +69,6 @@ var (
 
 	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 
-	systemContracts = map[common.Address]bool{
-		common.HexToAddress(systemcontracts.ValidatorFactoryContract): true,
-		common.HexToAddress(systemcontracts.ValidatorHubContract):     true,
-	}
-
 	ether = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 )
 
@@ -707,7 +702,7 @@ func calcDifficulty(
 	} else {
 		diffNumber = diffNumber.Div(diffNumber, big.NewInt(256))
 	}
-	randBeta := big.NewInt(0).SetBytes(beta[:6])          //uint48
+	randBeta := big.NewInt(0).SetBytes(beta[:6]) //uint48
 	diff := big.NewInt(0)
 	diff = diff.Or(diff, nonce.Lsh(nonce, 88)).
 		Or(diff, custom.Lsh(custom, 80)).
@@ -879,7 +874,7 @@ func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateD
 	if baseFee != nil {
 		gasPrice = gasPrice.Set(baseFee)
 	}
-	tx := types.NewTransaction(nonce, common.HexToAddress(systemcontracts.ValidatorHubContract), common.Big0, 200000,gasPrice, data)
+	tx := types.NewTransaction(nonce, common.HexToAddress(systemcontracts.ValidatorHubContract), common.Big0, 200000, gasPrice, data)
 	//signtx
 	expectedTx, err := p.signTxFn(accounts.Account{Address: p.val}, tx, p.chainConfig.ChainID)
 	if err != nil {

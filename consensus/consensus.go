@@ -129,8 +129,6 @@ type PoW interface {
 type PoSA interface {
 	Engine
 
-	//IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error)
-	//IsSystemContract(to *common.Address) bool
 	Heartbeat(number *big.Int) error
 
 	GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int, totalFee *big.Int) *types.TransactionsByPriceAndNonce

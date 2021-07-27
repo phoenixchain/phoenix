@@ -18,7 +18,6 @@ package core
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -218,14 +217,13 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		if config.DAOForkSupport && config.DAOForkBlock != nil && config.DAOForkBlock.Cmp(b.header.Number) == 0 {
 			misc.ApplyDAOHardFork(statedb)
 		}
-		systemcontracts.UpgradeBuildInSystemContract(config, b.header.Number, statedb)
 		// Execute any user modifications to the block
 		if gen != nil {
 			gen(i, b)
 		}
 		if b.engine != nil {
 			// Finalize and seal the block
-			block, _, _ := b.engine.FinalizeAndAssemble(chainreader, b.header, statedb, b.txs, b.uncles, b.receipts)
+			block, _ := b.engine.FinalizeAndAssemble(chainreader, b.header, statedb, b.txs, b.uncles, b.receipts)
 
 			// Write state changes to db
 			root, err := statedb.Commit(config.IsEIP158(b.header.Number))

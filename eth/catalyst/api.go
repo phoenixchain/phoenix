@@ -211,7 +211,7 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 	}
 
 	// Create the block.
-	block, _, err := api.eth.Engine().FinalizeAndAssemble(bc, header, env.state, transactions, nil /* uncles */, env.receipts)
+	block, err := api.eth.Engine().FinalizeAndAssemble(bc, header, env.state, transactions, nil /* uncles */, env.receipts)
 	if err != nil {
 		return nil, err
 	}

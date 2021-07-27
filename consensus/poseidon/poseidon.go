@@ -22,16 +22,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto/vrf"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"io"
-	"math"
 	"math/big"
 	"strings"
 	"sync"
@@ -180,10 +176,6 @@ type SignerFn func(signer accounts.Account, mimeType string, message []byte) ([]
 type SignerTxFn func(accounts.Account, *types.Transaction, *big.Int) (*types.Transaction, error)
 type VrfProveFn func(alpha []byte) (beta, pi []byte, err error)
 
-func isToSystemContract(to common.Address) bool {
-	return systemContracts[to]
-}
-
 // ecrecover extracts the Ethereum account address from a signed header.
 func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) ([]byte, common.Address, error) {
 	// If the signature's already cached, return that
@@ -271,33 +263,6 @@ func New(
 
 func (p *Poseidon) SetTxPoolAPI(txPoolAPI *ethapi.PublicTransactionPoolAPI) {
 	p.txPoolAPI = txPoolAPI
-}
-
-func (p *Poseidon) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
-	return false, nil
-	// deploy a contract
-	if tx.To() == nil {
-		return false, nil
-	}
-	sender, err := types.Sender(p.signer, tx)
-	if err != nil {
-		return false, errors.New("UnAuthorized transaction")
-	}
-	signer, err := p.Author(header)
-	if err != nil {
-		return false, err
-	}
-	if sender == signer && isToSystemContract(*tx.To()) && tx.GasPrice().Cmp(big.NewInt(0)) == 0 {
-		return true, nil
-	}
-	return false, nil
-}
-
-func (p *Poseidon) IsSystemContract(to *common.Address) bool {
-	if to == nil {
-		return false
-	}
-	return isToSystemContract(*to)
 }
 
 // Author implements consensus.Engine, returning the Ethereum address recovered
@@ -437,100 +402,6 @@ func (c *Poseidon) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 	return nil
 }
 
-// snapshot retrieves the authorization snapshot at a given point in time.
-func (p *Poseidon) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
-	// Search for a snapshot in memory or on disk for checkpoints
-	var (
-		headers []*types.Header
-		snap    *Snapshot
-	)
-
-	for snap == nil {
-		// If an in-memory snapshot was found, use that
-		//if s, ok := p.recentSnaps.Get(hash); ok {
-		//	snap = s.(*Snapshot)
-		//	break
-		//}
-
-		// If an on-disk checkpoint snapshot can be found, use that
-		//if number%checkpointInterval == 0 {
-		if s, err := loadSnapshot(p.config, p.signatures, p.db, hash, p.ethAPI); err == nil {
-			log.Trace("Loaded snapshot from disk", "number", number, "hash", hash)
-			snap = s
-			break
-		}
-		//}
-
-		// If we're at the genesis, snapshot the initial state.
-		if number == 0 {
-			checkpoint := chain.GetHeaderByNumber(number)
-			if checkpoint != nil {
-				// get checkpoint data
-				hash := checkpoint.Hash()
-
-				validatorBytes := checkpoint.Extra[extraVanity : len(checkpoint.Extra)-extraSeal]
-				// get validators from headers
-				validators, err := ParseValidators(validatorBytes)
-				if err != nil {
-					return nil, err
-				}
-
-				// new snap shot
-				snap = newSnapshot(p.config, p.signatures, number, hash, validators, p.ethAPI)
-				if err := snap.store(p.db); err != nil {
-					return nil, err
-				}
-				log.Info("Stored checkpoint snapshot to disk", "number", number, "hash", hash)
-				break
-			}
-		}
-
-		// No snapshot for this header, gather the header and move backward
-		var header *types.Header
-		if len(parents) > 0 {
-			// If we have explicit parents, pick from there (enforced)
-			header = parents[len(parents)-1]
-			if header.Hash() != hash || header.Number.Uint64() != number {
-				return nil, consensus.ErrUnknownAncestor
-			}
-			parents = parents[:len(parents)-1]
-		} else {
-			// No explicit parents (or no more left), reach out to the database
-			header = chain.GetHeader(hash, number)
-			if header == nil {
-				return nil, consensus.ErrUnknownAncestor
-			}
-		}
-		headers = append(headers, header)
-		number, hash = number-1, header.ParentHash
-	}
-
-	// check if snapshot is nil
-	if snap == nil {
-		return nil, fmt.Errorf("unknown error while retrieving snapshot at block number %v", number)
-	}
-
-	// Previous snapshot found, apply any pending headers on top of it
-	for i := 0; i < len(headers)/2; i++ {
-		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
-	}
-
-	snap, err := snap.apply(headers, chain, parents, p.chainConfig.ChainID)
-	if err != nil {
-		return nil, err
-	}
-	//p.recentSnaps.Add(snap.Hash, snap)
-
-	// If we've generated a new checkpoint snapshot, save to disk
-	//if snap.Number%checkpointInterval == 0 && len(headers) > 0 {
-	//	if err = snap.store(p.db); err != nil {
-	//		return nil, err
-	//	}
-	//	log.Trace("Stored snapshot to disk", "number", snap.Number, "hash", snap.Hash)
-	//}
-	return snap, err
-}
-
 // VerifyUncles implements consensus.Engine, always returning an error for any
 // uncles as this consensus mechanism doesn't permit uncles.
 func (c *Poseidon) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
@@ -640,39 +511,21 @@ func (c *Poseidon) verifySort(money *big.Int, totalMoney *big.Int, blockNumber *
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
-func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
-	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
-	// No block rewards in PoA, so the state remains as is and uncles are dropped
-	cx := chainContext{Chain: chain, poseidon: c}
-	if header.Number.Cmp(common.Big1) == 0 {
-		err := c.initContract(state, header, cx, txs, receipts, systemTxs, usedGas, false)
-		if err != nil {
-			log.Error("init contract failed")
-		}
-	}
-
+func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
+	uncles []*types.Header) {
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
-
-	return nil
 }
 
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
 func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
-	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
-	cx := chainContext{Chain: chain, poseidon: c}
+	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	if txs == nil {
 		txs = make([]*types.Transaction, 0)
 	}
 	if receipts == nil {
 		receipts = make([]*types.Receipt, 0)
-	}
-	if header.Number.Cmp(common.Big1) == 0 {
-		err := c.initContract(state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
-		if err != nil {
-			log.Error("init contract failed")
-		}
 	}
 
 	// should not happen. Once happen, stop the node is better than broadcast the block
@@ -683,7 +536,7 @@ func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 	header.UncleHash = types.CalcUncleHash(nil)
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil)), receipts, nil
+	return types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil)), nil
 }
 
 // Authorize injects a private key into the consensus engine to mint new blocks
@@ -997,118 +850,6 @@ func totalFees(header *types.Header, txs []*types.Transaction, receipts []*types
 	return feesWei
 }
 
-// init contract
-func (p *Poseidon) initContract(state *state.StateDB, header *types.Header, chain core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
-	return nil
-
-	// TODO fill
-	// method
-	//method := "init"
-	//// contracts
-	//contracts := []string{
-	//	systemcontracts.ValidatorFactoryContract,
-	//	systemcontracts.ValidatorHubContract,
-	//}
-	//// get packed data
-	//data, err := p.validatorSetABI.Pack(method)
-	//if err != nil {
-	//	log.Error("Unable to pack tx for init validator set", "error", err)
-	//	return err
-	//}
-	//for _, c := range contracts {
-	//	msg := p.getSystemMessage(header.Coinbase, common.HexToAddress(c), data, common.Big0)
-	//	// apply message
-	//	log.Trace("init contract", "block hash", header.Hash(), "contract", c)
-	//	err = p.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
-	//	if err != nil {
-	//		return err
-	//	}
-	//}
-	//return nil
-}
-
-// get system message
-func (p *Poseidon) getSystemMessage(header *types.Header, mining bool, toAddress common.Address, data []byte, value *big.Int) (callmsg, error) {
-	var from common.Address
-	if mining == true {
-		from = p.val
-	} else {
-		signer, err := p.Author(header)
-		if err != nil {
-			return callmsg{}, err
-		}
-		from = signer
-	}
-	return callmsg{
-		ethereum.CallMsg{
-			From:     from,
-			Gas:      math.MaxUint64 / 2,
-			GasPrice: big.NewInt(0),
-			Value:    value,
-			To:       &toAddress,
-			Data:     data,
-		},
-	}, nil
-}
-
-func (p *Poseidon) applyTransaction(
-	msg callmsg,
-	state *state.StateDB,
-	header *types.Header,
-	chainContext core.ChainContext,
-	txs *[]*types.Transaction, receipts *[]*types.Receipt,
-	receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool,
-) (err error) {
-	nonce := state.GetNonce(msg.From())
-	expectedTx := types.NewTransaction(nonce, *msg.To(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.Data())
-	expectedHash := p.signer.Hash(expectedTx)
-
-	if msg.From() == p.val && mining {
-		expectedTx, err = p.signTxFn(accounts.Account{Address: msg.From()}, expectedTx, p.chainConfig.ChainID)
-		if err != nil {
-			return err
-		}
-	} else {
-		if receivedTxs == nil || len(*receivedTxs) == 0 || (*receivedTxs)[0] == nil {
-			return errors.New("supposed to get a actual transaction, but get none")
-		}
-		actualTx := (*receivedTxs)[0]
-		if !bytes.Equal(p.signer.Hash(actualTx).Bytes(), expectedHash.Bytes()) {
-			return fmt.Errorf("expected tx hash %v, get %v", expectedHash.String(), actualTx.Hash().String())
-		}
-		expectedTx = actualTx
-		// move to next
-		*receivedTxs = (*receivedTxs)[1:]
-	}
-	//state.Prepare(expectedTx.Hash(), common.Hash{}, len(*txs))
-	gasUsed, err := applyMessage(msg, state, header, p.chainConfig, chainContext)
-	if err != nil {
-		return err
-	}
-	*txs = append(*txs, expectedTx)
-	var root []byte
-	if p.chainConfig.IsByzantium(header.Number) {
-		state.Finalise(true)
-	} else {
-		root = state.IntermediateRoot(p.chainConfig.IsEIP158(header.Number)).Bytes()
-	}
-	*usedGas += gasUsed
-	receipt := types.NewReceipt(root, false, *usedGas)
-	receipt.TxHash = expectedTx.Hash()
-	receipt.GasUsed = gasUsed
-
-	// Set the receipt logs and create a bloom for filtering
-	//receipt.Logs = state.GetLogs(expectedTx.Hash())
-	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
-	//receipt.BlockHash = state.BlockHash()
-	receipt.BlockNumber = header.Number
-	receipt.TransactionIndex = uint(state.TxIndex())
-	*receipts = append(*receipts, receipt)
-	state.SetNonce(msg.From(), nonce+1)
-	return nil
-}
-
 // chain context
 type chainContext struct {
 	Chain    consensus.ChainHeaderReader
@@ -1121,47 +862,6 @@ func (c chainContext) Engine() consensus.Engine {
 
 func (c chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
 	return c.Chain.GetHeader(hash, number)
-}
-
-// callmsg implements core.Message to allow passing it as a transaction simulator.
-type callmsg struct {
-	ethereum.CallMsg
-}
-
-func (m callmsg) From() common.Address { return m.CallMsg.From }
-func (m callmsg) Nonce() uint64        { return 0 }
-func (m callmsg) CheckNonce() bool     { return false }
-func (m callmsg) To() *common.Address  { return m.CallMsg.To }
-func (m callmsg) GasPrice() *big.Int   { return m.CallMsg.GasPrice }
-func (m callmsg) Gas() uint64          { return m.CallMsg.Gas }
-func (m callmsg) Value() *big.Int      { return m.CallMsg.Value }
-func (m callmsg) Data() []byte         { return m.CallMsg.Data }
-
-// apply message
-func applyMessage(
-	msg callmsg,
-	state *state.StateDB,
-	header *types.Header,
-	chainConfig *params.ChainConfig,
-	chainContext core.ChainContext,
-) (uint64, error) {
-	// Create a new context to be used in the EVM environment
-	context := core.NewEVMBlockContext(header, chainContext, nil)
-	// Create a new environment which holds all relevant information
-	// about the transaction and calling mechanisms.
-	vmenv := vm.NewEVM(context, vm.TxContext{Origin: msg.From(), GasPrice: big.NewInt(0)}, state, chainConfig, vm.Config{})
-	// Apply the transaction to the current state (included in the env)
-	ret, returnGas, err := vmenv.Call(
-		vm.AccountRef(msg.From()),
-		*msg.To(),
-		msg.Data(),
-		msg.Gas(),
-		msg.Value(),
-	)
-	if err != nil {
-		log.Error("apply message failed", "msg", string(ret), "err", err)
-	}
-	return msg.Gas() - returnGas, err
 }
 
 func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int, totalFee *big.Int) *types.TransactionsByPriceAndNonce {

@@ -854,14 +854,11 @@ func calcDifficulty(
 	} else {
 		diffNumber = diffNumber.Div(diffNumber, big.NewInt(256))
 	}
-	amountSupply := big.NewInt(0).Div(totalSupply, ether) //uint32
-	randBeta := big.NewInt(0).SetBytes(beta[:1])          //uint8
-
+	randBeta := big.NewInt(0).SetBytes(beta[:6])          //uint48
 	diff := big.NewInt(0)
-	diff = diff.Or(diff, nonce.Lsh(nonce, 80)).
-		Or(diff, custom.Lsh(custom, 72)).
-		Or(diff, diffNumber.Lsh(diffNumber, 40)).
-		Or(diff, amountSupply.Lsh(amountSupply, 8)).
+	diff = diff.Or(diff, nonce.Lsh(nonce, 88)).
+		Or(diff, custom.Lsh(custom, 80)).
+		Or(diff, diffNumber.Lsh(diffNumber, 48)).
 		Or(diff, randBeta)
 
 	return diff

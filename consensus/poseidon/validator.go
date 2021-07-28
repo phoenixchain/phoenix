@@ -155,3 +155,37 @@ func (p *Poseidon) GetCommitteeSupply(blockNumber *big.Int) (*big.Int, error) {
 	}
 	return out, nil
 }
+
+func (p *Poseidon) GetValidators(blockNumber *big.Int) ([]common.Address, error) {
+	// method
+	method := "getValidators"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // cancel when we are finished consuming integers
+
+	data, err := p.validatorSetABI.Pack(method)
+	if err != nil {
+		log.Error("Unable to pack tx for getValidators", "error", err)
+		return nil, err
+	}
+	// call
+	msgData := (hexutil.Bytes)(data)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
+	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
+		Gas:  &gas,
+		From: &p.val,
+		To:   &toAddress,
+		Data: &msgData,
+	}, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()-1)), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]common.Address, 0)
+
+	if err := p.validatorSetABI.UnpackIntoInterface(&out, method, result); err != nil {
+		return nil, err
+	}
+	return out, nil
+}

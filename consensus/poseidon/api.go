@@ -20,15 +20,22 @@ func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 	return nil, nil
 }
 
-func (api *API) GetValidatorInfo(validatorAddr common.Address, blockNumber *rpc.BlockNumber) (*ValidatorInfo, error) {
-	info, err := api.poseidon.GetValidatorInfo(validatorAddr, big.NewInt(blockNumber.Int64()))
-	if err != nil {
-		return nil, err
-	}
+func (api *API) IsValidator(validatorAddr common.Address, blockNumber *big.Int) (bool, error) {
+	return api.poseidon.IsValidator(validatorAddr, blockNumber)
+}
 
-	return info, nil
+func (api *API) GetValidatorInfo(validatorAddr common.Address, blockNumber *big.Int) (*ValidatorInfo, error) {
+	return api.poseidon.GetValidatorInfo(validatorAddr, blockNumber)
 }
 
 func (api *API) GetCommitteeSupply(blockNumber *big.Int) (*big.Int, error) {
 	return api.poseidon.GetCommitteeSupply(blockNumber)
+}
+
+func (api *API) IsProposer(validatorAddr common.Address, blockNumber *big.Int) (bool, error) {
+	return api.poseidon.IsProposer(validatorAddr, blockNumber)
+}
+
+func (api *API) GetValidators(blockNumber *big.Int) ([]common.Address, error) {
+	return api.poseidon.GetValidators(blockNumber)
 }

@@ -931,7 +931,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		header.Coinbase = w.coinbase
 	}
 
-	if spos, isPoSA := w.engine.(consensus.PoSA); isPoSA {
+	if spos, isPoSA := w.engine.(consensus.PoSA); isPoSA && w.isRunning() {
 		if err := spos.Heartbeat(num); err != nil {
 			log.Warn("Heartbeat failed", "err", err)
 		}

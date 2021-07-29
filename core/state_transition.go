@@ -355,13 +355,6 @@ func (st *StateTransition) tridentCheck(trident, contractCreation bool, msg Mess
 	}
 
 	toAddress := *msg.To()
-	contractHash := st.evm.StateDB.GetCodeHash(toAddress)
-	if contractHash != (common.Hash{}) && contractHash != emptyCodeHash {
-		//	...
-	} else {
-		return nil
-	}
-
 	if _, ok := systemcontracts.SystemContracts[toAddress]; ok {
 		return nil
 	}
@@ -370,7 +363,12 @@ func (st *StateTransition) tridentCheck(trident, contractCreation bool, msg Mess
 		return nil
 	}
 
-	return fmt.Errorf("unsupport tx: Perform contract transfer")
+	contractHash := st.evm.StateDB.GetCodeHash(toAddress)
+	if contractHash != (common.Hash{}) && contractHash != emptyCodeHash {
+		return fmt.Errorf("unsupport tx: Perform contract transfer")
+	}
+
+	return nil
 }
 
 func (st *StateTransition) refundGas(refundQuotient uint64) {

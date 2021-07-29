@@ -304,10 +304,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 			return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From().Hex())
 		}
 
-		// Check clause 7
-		if err := st.tridentCheck(trident, contractCreation, msg); err != nil {
-			return nil, err
-		}
+		_ = trident
+		//Check clause 7
+		//if err := st.tridentCheck(trident, contractCreation, msg); err != nil {
+		//	return nil, err
+		//}
 	}
 
 	// Set up the initial access list.

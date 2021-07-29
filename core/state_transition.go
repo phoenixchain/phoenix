@@ -23,10 +23,15 @@ import (
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"math"
 	"math/big"
 )
+
+// emptyCodeHash is used by create to ensure deployment is disallowed to already
+// deployed contract addresses (relevant after the account abstraction).
+var emptyCodeHash = crypto.Keccak256Hash(nil)
 
 /*
 The State Transitioning Model
@@ -350,6 +355,12 @@ func (st *StateTransition) tridentCheck(trident, contractCreation bool, msg Mess
 	}
 
 	toAddress := *msg.To()
+	contractHash := st.evm.StateDB.GetCodeHash(toAddress)
+	if contractHash != (common.Hash{}) && contractHash != emptyCodeHash {
+		//	...
+	} else {
+		return nil
+	}
 
 	if _, ok := systemcontracts.SystemContracts[toAddress]; ok {
 		return nil

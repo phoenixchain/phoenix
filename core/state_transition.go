@@ -24,15 +24,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"math"
 	"math/big"
 )
 
-// emptyCodeHash is used by create to ensure deployment is disallowed to already
-// deployed contract addresses (relevant after the account abstraction).
-var emptyCodeHash = crypto.Keccak256Hash(nil)
 var systemContractAddress = common.HexToAddress(systemcontracts.ValidatorHubContract)
 
 /*
@@ -301,13 +297,15 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	st.gas -= gas
 
 	// Check clause 6
-	if msg.Value().Sign() > 0 && !st.evm.Context.CanTransfer(st.state, msg.From(), msg.Value()) {
-		return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From().Hex())
-	}
+	if msg.Value().Sign() > 0 {
+		if !st.evm.Context.CanTransfer(st.state, msg.From(), msg.Value()) {
+			return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From().Hex())
+		}
 
-	// Check clause 7
-	if err := st.tridentCheck(trident, contractCreation, msg); err != nil {
-		return nil, err
+		// Check clause 7
+		if err := st.tridentCheck(trident, contractCreation, msg); err != nil {
+			return nil, err
+		}
 	}
 
 	// Set up the initial access list.
@@ -350,27 +348,21 @@ func (st *StateTransition) tridentCheck(trident, contractCreation bool, msg Mess
 		return nil
 	}
 
-	if contractCreation && msg.Value().Sign() > 0 {
+	if contractCreation {
 		return fmt.Errorf("unsupport tx: Deploy contract transfer")
 	}
 
 	toAddress := *msg.To()
-	contractHash := st.evm.StateDB.GetCodeHash(toAddress)
 
-	var toContractAddress bool
-	var toSystemContractAddress bool
-
-	if contractHash != (common.Hash{}) && contractHash != emptyCodeHash {
-		toContractAddress = true
-	}
 	if bytes.Compare(toAddress[:], systemContractAddress[:]) == 0 {
-		toSystemContractAddress = true
-	}
-	if toContractAddress && !toSystemContractAddress && msg.Value().Sign() > 0 {
-		return fmt.Errorf("unsupport tx: Perform contract transfer")
+		return nil
 	}
 
-	return nil
+	if _, ok := systemcontracts.SystemContractAddress[toAddress]; ok {
+		return nil
+	}
+
+	return fmt.Errorf("unsupport tx: Perform contract transfer")
 }
 
 func (st *StateTransition) refundGas(refundQuotient uint64) {

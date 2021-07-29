@@ -131,5 +131,5 @@ type PoSA interface {
 
 	Heartbeat(number *big.Int) error
 
-	GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int, totalFee *big.Int) *types.TransactionsByPriceAndNonce
+	GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int, totalFee *big.Int) (*types.TransactionsByPriceAndNonce,error)
 }

@@ -859,7 +859,7 @@ func (c chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
 	return c.Chain.GetHeader(hash, number)
 }
 
-func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int, totalFee *big.Int) *types.TransactionsByPriceAndNonce {
+func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int, totalFee *big.Int) (*types.TransactionsByPriceAndNonce,error) {
 	nonce := state.GetNonce(p.val)
 
 	method := "syncTendermintHeader"
@@ -868,7 +868,7 @@ func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateD
 		totalFee,
 	)
 	if err != nil {
-		log.Error("syncTendermintHeader build data fail", "err", err)
+		return nil,err
 	}
 	gasPrice := big.NewInt(0)
 	if baseFee != nil {
@@ -878,11 +878,11 @@ func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateD
 	//signtx
 	expectedTx, err := p.signTxFn(accounts.Account{Address: p.val}, tx, p.chainConfig.ChainID)
 	if err != nil {
-		log.Error("syncTendermintHeader build tx fail", "err", err)
+		return nil,err
 	}
 
 	txs := make(map[common.Address]types.Transactions)
 	txs[p.val] = types.Transactions{expectedTx}
 
-	return types.NewTransactionsByPriceAndNonce(signer, txs, baseFee)
+	return types.NewTransactionsByPriceAndNonce(signer, txs, baseFee),nil
 }

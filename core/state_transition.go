@@ -17,16 +17,23 @@
 package core
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"math"
 	"math/big"
 )
+
+// emptyCodeHash is used by create to ensure deployment is disallowed to already
+// deployed contract addresses (relevant after the account abstraction).
+var emptyCodeHash = crypto.Keccak256Hash(nil)
+var systemContractAddress = common.HexToAddress(systemcontracts.ValidatorHubContract)
 
 /*
 The State Transitioning Model
@@ -270,6 +277,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// 4. the purchased gas is enough to cover intrinsic usage
 	// 5. there is no overflow when calculating intrinsic gas
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
+	// 7. before trident, transfer to normal contract
 
 	// Check clauses 1-3, buy gas if everything is correct
 	if err := st.preCheck(); err != nil {
@@ -278,6 +286,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
 	homestead := st.evm.ChainConfig().IsHomestead(st.evm.Context.BlockNumber)
+	trident := st.evm.ChainConfig().IsTrident(st.evm.Context.BlockNumber)
 	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.Context.BlockNumber)
 	contractCreation := msg.To() == nil
 
@@ -294,6 +303,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// Check clause 6
 	if msg.Value().Sign() > 0 && !st.evm.Context.CanTransfer(st.state, msg.From(), msg.Value()) {
 		return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From().Hex())
+	}
+
+	// Check clause 7
+	if err := st.tridentCheck(trident, contractCreation, msg); err != nil {
+		return nil, err
 	}
 
 	// Set up the initial access list.
@@ -329,6 +343,34 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		Err:        vmerr,
 		ReturnData: ret,
 	}, nil
+}
+
+func (st *StateTransition) tridentCheck(trident, contractCreation bool, msg Message) error {
+	if trident {
+		return nil
+	}
+
+	if contractCreation && msg.Value().Sign() > 0 {
+		return fmt.Errorf("unsupport tx: Deploy contract transfer")
+	}
+
+	toAddress := *msg.To()
+	contractHash := st.evm.StateDB.GetCodeHash(toAddress)
+
+	var toContractAddress bool
+	var toSystemContractAddress bool
+
+	if contractHash != (common.Hash{}) && contractHash != emptyCodeHash {
+		toContractAddress = true
+	}
+	if bytes.Compare(toAddress[:], systemContractAddress[:]) == 0 {
+		toSystemContractAddress = true
+	}
+	if toContractAddress && !toSystemContractAddress && msg.Value().Sign() > 0 {
+		return fmt.Errorf("unsupport tx: Perform contract transfer")
+	}
+
+	return nil
 }
 
 func (st *StateTransition) refundGas(refundQuotient uint64) {

@@ -21,6 +21,8 @@ var (
 	}
 
 	SystemContractAddress = map[common.Address]bool{
+		common.HexToAddress(ValidatorHubContract):                         true,
+		common.HexToAddress(ValidatorFactoryContract):                     true,
 		common.HexToAddress("0xA020c0a38953C7E8Dafea49e8a3c4607130DDa66"): true,
 		common.HexToAddress("0xc07B539C53A07CEa4E26C6d7c841cE200E0aBc2C"): true,
 		common.HexToAddress("0x02fD225919FB8Adc7275273B280a9B3b01e13fce"): true,

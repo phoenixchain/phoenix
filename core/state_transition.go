@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"math"
 	"math/big"
@@ -284,7 +285,6 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
 	homestead := st.evm.ChainConfig().IsHomestead(st.evm.Context.BlockNumber)
-	trident := st.evm.ChainConfig().IsTrident(st.evm.Context.BlockNumber)
 	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.Context.BlockNumber)
 	contractCreation := msg.To() == nil
 
@@ -299,16 +299,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	st.gas -= gas
 
 	// Check clause 6
-	if msg.Value().Sign() > 0 {
-		if !st.evm.Context.CanTransfer(st.state, msg.From(), msg.Value()) {
-			return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From().Hex())
-		}
-
-		_ = trident
-		//Check clause 7
-		//if err := st.tridentCheck(trident, contractCreation, msg); err != nil {
-		//	return nil, err
-		//}
+	if msg.Value().Sign() > 0 && (!st.evm.Context.CanTransfer(st.state, msg.From(), msg.Value()) || !st.tridentCanTransfer(msg.To())) {
+		return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From().Hex())
 	}
 
 	// Set up the initial access list.
@@ -346,30 +338,34 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}, nil
 }
 
-func (st *StateTransition) tridentCheck(trident, contractCreation bool, msg Message) error {
-	if trident {
-		return nil
-	}
-
-	if contractCreation {
-		return fmt.Errorf("unsupport tx: Deploy contract transfer")
-	}
-
-	toAddress := *msg.To()
-	if _, ok := systemcontracts.SystemContracts[toAddress]; ok {
-		return nil
-	}
-
-	if _, ok := systemcontracts.SystemContractAddress[toAddress]; ok {
-		return nil
-	}
-
-	contractHash := st.evm.StateDB.GetCodeHash(toAddress)
+func (st *StateTransition) isContract(address *common.Address) bool {
+	contractHash := st.evm.StateDB.GetCodeHash(*address)
 	if contractHash != (common.Hash{}) && contractHash != emptyCodeHash {
-		return fmt.Errorf("unsupport tx: Perform contract transfer")
+		return true
 	}
 
-	return nil
+	return false
+}
+
+func (st *StateTransition) tridentCanTransfer(toAddress *common.Address) bool {
+	trident := st.evm.ChainConfig().IsTrident(st.evm.Context.BlockNumber)
+
+	if trident {
+		log.Info("debug=>tridentCheck", "trident fork enabled.")
+		return true
+	}
+
+	if _, ok := systemcontracts.SystemContractAddress[*toAddress]; ok {
+		log.Info("debug=>tridentCheck", "system contract is matched.", *toAddress)
+		return true
+	}
+
+	if st.isContract(toAddress) == true {
+		log.Info("debug=>tridentCheck", "found contract.", *toAddress)
+		return false
+	}
+
+	return true
 }
 
 func (st *StateTransition) refundGas(refundQuotient uint64) {

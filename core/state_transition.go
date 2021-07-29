@@ -17,7 +17,6 @@
 package core
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
@@ -28,8 +27,6 @@ import (
 	"math"
 	"math/big"
 )
-
-var systemContractAddress = common.HexToAddress(systemcontracts.ValidatorHubContract)
 
 /*
 The State Transitioning Model
@@ -354,7 +351,7 @@ func (st *StateTransition) tridentCheck(trident, contractCreation bool, msg Mess
 
 	toAddress := *msg.To()
 
-	if bytes.Compare(toAddress[:], systemContractAddress[:]) == 0 {
+	if _, ok := systemcontracts.SystemContracts[toAddress]; ok {
 		return nil
 	}
 

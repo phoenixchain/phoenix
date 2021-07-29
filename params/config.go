@@ -613,6 +613,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.LondonBlock, newcfg.LondonBlock, head) {
 		return newCompatError("London fork block", c.LondonBlock, newcfg.LondonBlock)
 	}
+	if isForkIncompatible(c.TridentBlock, newcfg.TridentBlock, head) {
+		return newCompatError("Trident fork block", c.TridentBlock, newcfg.TridentBlock)
+	}
 	return nil
 }
 

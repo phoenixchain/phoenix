@@ -351,17 +351,22 @@ func (st *StateTransition) tridentCanTransfer(toAddress *common.Address) bool {
 	trident := st.evm.ChainConfig().IsTrident(st.evm.Context.BlockNumber)
 
 	if trident {
-		log.Info("debug=>tridentCheck", "trident fork enabled.")
+		log.Debug("tridentCheck", "trident fork enabled.")
 		return true
 	}
 
+	if toAddress == nil {
+		log.Debug("tridentCheck", "contract creation is not allowed.")
+		return false
+	}
+
 	if _, ok := systemcontracts.SystemContractAddress[*toAddress]; ok {
-		log.Info("debug=>tridentCheck", "system contract is matched.", *toAddress)
+		log.Debug("tridentCheck", "system contract is matched.", *toAddress)
 		return true
 	}
 
 	if st.isContract(toAddress) == true {
-		log.Info("debug=>tridentCheck", "found contract.", *toAddress)
+		log.Debug("tridentCheck", "don't allow transfers to contracts", *toAddress)
 		return false
 	}
 

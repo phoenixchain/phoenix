@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"math/big"
 	"strings"
 	"time"
@@ -1666,6 +1667,9 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 	if err := checkTxFee(tx.GasPrice(), tx.Gas(), b.RPCTxFeeCap()); err != nil {
 		return common.Hash{}, err
 	}
+	if tx.Value().Sign() > 0 && !tridentCanTransfer(ctx, b, tx) {
+		return common.Hash{}, errors.New("the transaction was rejected because of trident")
+	}
 	if !b.UnprotectedAllowed() && !tx.Protected() {
 		// Ensure only eip155 signed transactions are submitted if EIP155Required is set.
 		return common.Hash{}, errors.New("only replay-protected (EIP-155) transactions allowed over RPC")
@@ -2057,4 +2061,34 @@ func toHexSlice(b [][]byte) []string {
 		r[i] = hexutil.Encode(b[i])
 	}
 	return r
+}
+
+func tridentCanTransfer(ctx context.Context, b Backend, tx *types.Transaction) bool {
+	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
+	state, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
+	if state == nil || err != nil {
+		return true
+	}
+
+	trident := b.ChainConfig().IsTrident(header.Number)
+	if trident {
+		return true
+	}
+
+	if tx.To() == nil || tx.To().String() == "" {
+		return false
+	}
+
+	if _, ok := systemcontracts.SystemContractAddress[*tx.To()]; ok {
+		return true
+	}
+
+	var emptyCodeHash = crypto.Keccak256Hash(nil)
+
+	contractHash := state.GetCodeHash(*tx.To())
+	if contractHash != (common.Hash{}) && contractHash != emptyCodeHash {
+		return false
+	}
+
+	return true
 }

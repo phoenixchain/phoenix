@@ -19,9 +19,13 @@ package poseidon
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/systemcontracts"
+	"github.com/ethereum/go-ethereum/crypto/vrf"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"io"
 	"math/big"
@@ -42,20 +46,30 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
-	lru "github.com/hashicorp/golang-lru"
+	"github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 )
 
 const (
 	inmemorySignatures = 4096 // Number of recent block signatures to keep in memory
+
+	vrfExpectedSize = 3.0
+
+	validatorBytesLength = common.AddressLength
+
+	nonceSignSize = 255
+	heartRate     = 100
 )
 
 // Spos proof-of-authority protocol constants.
 var (
 	extraVanity = 32                     // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraSeal   = crypto.SignatureLength // Fixed number of extra-data suffix bytes reserved for signer seal
+	extraVrf    = 81
 
 	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
+
+	ether = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -87,6 +101,8 @@ var (
 	// to contain a 65 byte secp256k1 signature.
 	errMissingSignature = errors.New("extra-data 65 byte signature suffix missing")
 
+	errMissingVrf = errors.New("extra-data 81 byte vrf suffix missing")
+
 	// errExtraSigners is returned if non-checkpoint block contain signer data in
 	// their extra-data fields.
 	errExtraSigners = errors.New("non-checkpoint block contains extra signer list")
@@ -104,6 +120,8 @@ var (
 
 	// errInvalidUncleHash is returned if a block contains an non-empty uncle list.
 	errInvalidUncleHash = errors.New("non empty uncle hash")
+
+	errInvalidVrfFn = errors.New("non empty vrf call")
 
 	// errInvalidDifficulty is returned if the difficulty of a block neither 1 or 2.
 	errInvalidDifficulty = errors.New("invalid difficulty")
@@ -123,61 +141,95 @@ var (
 	// errUnauthorizedSigner is returned if a header is signed by a non-authorized entity.
 	errUnauthorizedSigner = errors.New("unauthorized signer")
 
+	errUnauthorizedProposer = errors.New("unauthorized proposer")
+
 	// errRecentlySigned is returned if a header is signed by an authorized entity
 	// that already signed a header recently, thus is temporarily not allowed to.
 	errRecentlySigned = errors.New("recently signed")
+
+	// errOutOfRangeChain is returned if an authorization list is attempted to
+	// be modified via out-of-range or non-contiguous headers.
+	errOutOfRangeChain = errors.New("out of range or non-contiguous chain")
+
+	// errBlockHashInconsistent is returned if an authorization list is attempted to
+	// insert an inconsistent block.
+	errBlockHashInconsistent = errors.New("the block hash is inconsistent")
+
+	// errUnauthorizedValidator is returned if a header is signed by a non-authorized entity.
+	errUnauthorizedValidator = errors.New("unauthorized validator")
+
+	// errCoinBaseMisMatch is returned if a header's coinbase do not match with signature
+	//errCoinBaseMisMatch = errors.New("coinbase do not match with signature")
+
+	// errRecentlySigned is returned if a header is signed by an authorized entity
+	// that already signed a header recently, thus is temporarily not allowed to.
+	//errRecentlySigned = errors.New("recently signed")
 )
 
 // SignerFn hashes and signs the data to be signed by a backing account.
 type SignerFn func(signer accounts.Account, mimeType string, message []byte) ([]byte, error)
+type SignerTxFn func(accounts.Account, *types.Transaction, *big.Int) (*types.Transaction, error)
+type VrfProveFn func(alpha []byte) (beta, pi []byte, err error)
 
 // ecrecover extracts the Ethereum account address from a signed header.
-func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, error) {
+func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) ([]byte, common.Address, error) {
 	// If the signature's already cached, return that
 	hash := header.Hash()
 	if address, known := sigcache.Get(hash); known {
-		return address.(common.Address), nil
+		return nil, address.(common.Address), nil
 	}
 	// Retrieve the signature from the header extra-data
 	if len(header.Extra) < extraSeal {
-		return common.Address{}, errMissingSignature
+		return nil, common.Address{}, errMissingSignature
 	}
 	signature := header.Extra[len(header.Extra)-extraSeal:]
 
 	// Recover the public key and the Ethereum address
-	pubkey, err := crypto.Ecrecover(SealHash(header).Bytes(), signature)
+	pubkey, err := crypto.Ecrecover(SealHash(header, chainId).Bytes(), signature)
 	if err != nil {
-		return common.Address{}, err
+		return nil, common.Address{}, err
 	}
-	var signer common.Address
-	copy(signer[:], crypto.Keccak256(pubkey[1:])[12:])
+	var addr common.Address
+	copy(addr[:], crypto.Keccak256(pubkey[1:])[12:])
 
-	sigcache.Add(hash, signer)
-	return signer, nil
+	sigcache.Add(hash, addr)
+	return pubkey, addr, nil
 }
 
 // Spos is the proof-of-authority consensus engine proposed to support the
 // Ethereum testnet following the Ropsten attacks.
 type Poseidon struct {
-	config *params.PoseidonConfig // Consensus engine configuration parameters
-	db     ethdb.Database         // Database to store and retrieve snapshot checkpoints
+	chainConfig *params.ChainConfig    // Chain config
+	config      *params.PoseidonConfig // Consensus engine configuration parameters
+	genesisHash common.Hash
+	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
+	beatcache  *lru.Cache
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
-	signer common.Address // Ethereum address of the signing key
-	signFn SignerFn       // Signer function to authorize hashes with
-	lock   sync.RWMutex   // Protects the signer fields
+	vrfFn    VrfProveFn
+	signer   types.Signer
+	val      common.Address // Ethereum address of the signing key
+	signFn   SignerFn       // Signer function to authorize hashes with
+	signTxFn SignerTxFn
+	lock     sync.RWMutex // Protects the signer fields
 
-	ethAPI *ethapi.PublicBlockChainAPI
+	ethAPI    *ethapi.PublicBlockChainAPI
+	txPoolAPI *ethapi.PublicTransactionPoolAPI
 
 	validatorSetABI abi.ABI
 }
 
 // New creates a Spos proof-of-authority consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(config *params.PoseidonConfig, db ethdb.Database) *Poseidon {
+func New(
+	chainConfig *params.ChainConfig,
+	db ethdb.Database,
+	ethAPI *ethapi.PublicBlockChainAPI,
+	genesisHash common.Hash,
+) *Poseidon {
 	// Set any missing consensus parameters to their defaults
-	conf := *config
+	poseidonConfig := chainConfig.Poseidon
 
 	// Allocate the snapshot caches and create the engine
 	signatures, _ := lru.NewARC(inmemorySignatures)
@@ -186,23 +238,38 @@ func New(config *params.PoseidonConfig, db ethdb.Database) *Poseidon {
 	if err != nil {
 		panic(err)
 	}
+	beatCache, err := lru.New(1)
+	if err != nil {
+		panic(err)
+	}
+
 	return &Poseidon{
-		config:          &conf,
+		chainConfig:     chainConfig,
+		config:          poseidonConfig,
+		genesisHash:     genesisHash,
 		db:              db,
+		ethAPI:          ethAPI,
 		signatures:      signatures,
 		validatorSetABI: vABI,
+		signer:          types.NewEIP155Signer(chainConfig.ChainID),
+		beatcache:       beatCache,
 	}
+}
+
+func (p *Poseidon) SetTxPoolAPI(txPoolAPI *ethapi.PublicTransactionPoolAPI) {
+	p.txPoolAPI = txPoolAPI
 }
 
 // Author implements consensus.Engine, returning the Ethereum address recovered
 // from the signature in the header's extra-data section.
 func (c *Poseidon) Author(header *types.Header) (common.Address, error) {
-	return ecrecover(header, c.signatures)
+	_, signer, err := ecrecover(header, c.signatures, c.chainConfig.ChainID)
+	return signer, err
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
 func (c *Poseidon) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
-	return c.verifyHeader(chain, header, nil)
+	return c.verifyHeader(chain, header, nil, seal)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers. The
@@ -214,7 +281,7 @@ func (c *Poseidon) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*t
 
 	go func() {
 		for i, header := range headers {
-			err := c.verifyHeader(chain, header, headers[:i])
+			err := c.verifyHeader(chain, header, headers[:i], seals[i])
 
 			select {
 			case <-abort:
@@ -230,7 +297,7 @@ func (c *Poseidon) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*t
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
-func (c *Poseidon) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+func (c *Poseidon) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, seal bool) error {
 	if header.Number == nil {
 		return errUnknownBlock
 	}
@@ -247,6 +314,9 @@ func (c *Poseidon) verifyHeader(chain consensus.ChainHeaderReader, header *types
 	}
 	if len(header.Extra) < extraVanity+extraSeal {
 		return errMissingSignature
+	}
+	if len(header.Extra) < extraVanity+extraSeal+extraVrf {
+		return errMissingVrf
 	}
 	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
 	//signersBytes := len(header.Extra) - extraVanity - extraSeal
@@ -275,14 +345,14 @@ func (c *Poseidon) verifyHeader(chain consensus.ChainHeaderReader, header *types
 		return err
 	}
 	// All basic checks passed, verify cascading fields
-	return c.verifyCascadingFields(chain, header, parents)
+	return c.verifyCascadingFields(chain, header, parents, seal)
 }
 
 // verifyCascadingFields verifies all the header fields that are not standalone,
 // rather depend on a batch of previous headers. The caller may optionally pass
 // in a batch of parents (ascending order) to avoid looking those up from the
 // database. This is useful for concurrently verifying a batch of new headers.
-func (c *Poseidon) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+func (c *Poseidon) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, seal bool) error {
 	// The genesis block is the always valid dead-end
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -319,7 +389,12 @@ func (c *Poseidon) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 	}
 
 	// All basic checks passed, verify the seal and return
-	return c.verifySeal(chain, header, parents)
+	if seal == false {
+		if err := c.verifySeal(chain, header, parents); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // VerifyUncles implements consensus.Engine, always returning an error for any
@@ -343,35 +418,59 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 	}
 
 	// Resolve the authorization key and check against signers
-	/*	signer, err := ecrecover(header, c.signatures)
-		if err != nil {
-			return err
-		}*/
+	pubkey, signer, err := ecrecover(header, c.signatures, c.chainConfig.ChainID)
+	if err != nil {
+		return err
+	}
+	if isProposer, err := c.IsProposer(signer, header.Number); err != nil || isProposer == false {
+		return errUnauthorizedProposer
+	}
+	info, err := c.GetValidatorInfo(signer, header.Number)
+	if err != nil {
+		return err
+	}
+	committeeSupply, err := c.GetCommitteeSupply(header.Number)
+	if err != nil {
+		return err
+	}
+	pi := make([]byte, extraVrf)
+	copy(header.Extra[len(header.Extra)-extraSeal-extraVrf:len(header.Extra)-extraSeal], pi)
 
-	//TODO:
+	alpha := c.GetVrfAlpha(header.ParentHash, header.Nonce)
+	publicKey, err := crypto.UnmarshalPubkey(pubkey)
+	if err != nil {
+		return err
+	}
+	beta, err := vrf.Verify(publicKey, alpha, pi)
+	if err != nil {
+		return err
+	}
+	if err := c.checkDifficulty(chain, header, info, beta); err != nil {
+		return err
+	}
+	if c.verifySort(info.TotalSupply, committeeSupply, header.Number, beta) == false {
+		return errUnauthorizedSigner
+	}
 	return nil
 }
 
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
+	if c.vrfFn == nil {
+		return errInvalidVrfFn
+	}
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
-	header.Coinbase = common.Address{}
 	header.Nonce = types.BlockNonce{}
 
 	number := header.Number.Uint64()
-
-	// Set the correct difficulty
-	header.Difficulty = calcDifficulty(c.signer)
 
 	// Ensure the extra data has all its components
 	if len(header.Extra) < extraVanity {
 		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra))...)
 	}
-	//TODO:
-	header.Extra = header.Extra[:extraVanity]
 
-	header.Extra = append(header.Extra, make([]byte, extraSeal)...)
+	header.Extra = header.Extra[:extraVanity]
 
 	// Mix digest is reserved for now, set to empty
 	header.MixDigest = common.Hash{}
@@ -385,22 +484,51 @@ func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Head
 	if header.Time < uint64(time.Now().Unix()) {
 		header.Time = uint64(time.Now().Unix())
 	}
+
+	info, err := c.GetValidatorInfo(c.val, header.Number)
+	if err != nil {
+		return err
+	}
+	header.Coinbase = info.RewardAddr
+
+	header.Extra = append(header.Extra, make([]byte, extraVrf+extraSeal)...)
+	header.Difficulty = common.Big0
 	return nil
+}
+
+func (c *Poseidon) verifySort(money *big.Int, totalMoney *big.Int, blockNumber *big.Int, vrfOutput []byte) bool {
+	expectedSize := vrfExpectedSize
+	if money.Cmp(totalMoney) >= 0 {
+		expectedSize = 1
+	}
+	return vrf.VerifySort(new(big.Int).Div(money, ether).Uint64(), new(big.Int).Div(totalMoney, ether).Uint64(), expectedSize, vrfOutput)
 }
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
-func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) {
-	// No block rewards in PoA, so the state remains as is and uncles are dropped
+func (c *Poseidon) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
+	uncles []*types.Header) {
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
 }
 
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
-func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
-	// Finalize block
-	c.Finalize(chain, header, state, txs, uncles)
+func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+	if txs == nil {
+		txs = make([]*types.Transaction, 0)
+	}
+	if receipts == nil {
+		receipts = make([]*types.Receipt, 0)
+	}
+
+	// should not happen. Once happen, stop the node is better than broadcast the block
+	if header.GasLimit < header.GasUsed {
+		panic("Gas consumption of system txs exceed the gas limit")
+	}
+	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+	header.UncleHash = types.CalcUncleHash(nil)
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil)), nil
@@ -408,18 +536,62 @@ func (c *Poseidon) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header
 
 // Authorize injects a private key into the consensus engine to mint new blocks
 // with.
-func (c *Poseidon) Authorize(signer common.Address, signFn SignerFn) {
+func (c *Poseidon) Authorize(val common.Address, signFn SignerFn, signTxFn SignerTxFn, vrfFn VrfProveFn) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.signer = signer
+	c.val = val
 	c.signFn = signFn
+	c.vrfFn = vrfFn
+	c.signTxFn = signTxFn
+}
+
+func (c *Poseidon) GetVrfAlpha(parentHash common.Hash, nonce types.BlockNonce) []byte {
+	alpha := make([]byte, len(parentHash))
+	copy(alpha, parentHash[:])
+	alpha = append(alpha, nonce[:]...)
+	return alpha
+}
+
+func (c *Poseidon) sortition(chain consensus.ChainHeaderReader, header *types.Header, info *ValidatorInfo, committeeSupply *big.Int, signer common.Address, signFn SignerFn) (bool, error) {
+	alpha := c.GetVrfAlpha(header.ParentHash, header.Nonce)
+	beta, pi, err := c.vrfFn(alpha)
+	if err != nil {
+		return false, err
+	}
+	copy(header.Extra[extraVanity:], pi)
+
+	if c.verifySort(info.TotalSupply, committeeSupply, header.Number, beta) == false {
+		return false, nil
+	}
+	// Set the correct difficulty
+	header.Difficulty = calcDifficulty(header.Nonce, header.Number, info.TotalSupply, info.LastBlockHeight, beta)
+
+	// Sign all the things!
+	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypePoseidon, PoseidonRLP(header, c.chainConfig.ChainID))
+	if err != nil {
+		return false, err
+	}
+	copy(header.Extra[len(header.Extra)-extraSeal:], sighash)
+	return true, nil
 }
 
 // Seal implements consensus.Engine, attempting to create a sealed block using
 // the local signing credentials.
 func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	header := block.Header()
+	if isProposer, err := c.IsProposer(c.val, header.Number); err != nil || isProposer == false {
+		return errUnauthorizedProposer
+	}
+
+	info, err := c.GetValidatorInfo(c.val, header.Number)
+	if err != nil {
+		return err
+	}
+	committeeSupply, err := c.GetCommitteeSupply(header.Number)
+	if err != nil {
+		return err
+	}
 
 	// Sealing the genesis block is not supported
 	number := header.Number.Uint64()
@@ -431,33 +603,53 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 		log.Info("Sealing paused, waiting for transactions")
 		return nil
 	}
+
 	// Don't hold the signer fields for the entire sealing procedure
 	c.lock.RLock()
-	signer, signFn := c.signer, c.signFn
+	signer, signFn := c.val, c.signFn
 	c.lock.RUnlock()
 
 	// Sweet, the protocol permits us to sign the block, wait for our time
 	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
 
-	// Sign all the things!
-	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypeClique, PoseidonRLP(header))
+	isSeal, err := c.sortition(chain, header, info, committeeSupply, signer, signFn)
 	if err != nil {
 		return err
 	}
-	copy(header.Extra[len(header.Extra)-extraSeal:], sighash)
 	// Wait until sealing is terminated or delay timeout.
 	log.Trace("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
 	go func() {
-		select {
-		case <-stop:
-			return
-		case <-time.After(delay):
-		}
+		vrfTimer := time.NewTicker(time.Duration(c.config.Period/2) * time.Second)
+		defer vrfTimer.Stop()
+		afterTimer := time.NewTimer(delay)
+		defer afterTimer.Stop()
 
+		for {
+			select {
+			case <-stop:
+				return
+			case <-afterTimer.C:
+				if isSeal {
+					goto sealLabel
+				}
+				afterTimer.Reset(1 * time.Second)
+			case <-vrfTimer.C:
+				if isSeal {
+					continue
+				}
+				header.Nonce = types.EncodeNonce(header.Nonce.Uint64() + 1)
+				isSeal, err = c.sortition(chain, header, info, committeeSupply, signer, signFn)
+				if err != nil {
+					log.Warn("Block sealExtra failed", "err", err)
+					return
+				}
+			}
+		}
+	sealLabel:
 		select {
 		case results <- block.WithSeal(header):
 		default:
-			log.Warn("Sealing result is not read by miner", "sealhash", SealHash(header))
+			log.Warn("Sealing result is not read by miner", "sealhash", SealHash(header, c.chainConfig.ChainID))
 		}
 	}()
 
@@ -469,16 +661,60 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 // * DIFF_NOTURN(2) if BLOCK_NUMBER % SIGNER_COUNT != SIGNER_INDEX
 // * DIFF_INTURN(1) if BLOCK_NUMBER % SIGNER_COUNT == SIGNER_INDEX
 func (c *Poseidon) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
-	return calcDifficulty(c.signer)
+	header := chain.CurrentHeader()
+	nonce := types.EncodeNonce(0)
+	if header != nil {
+		nonce = header.Nonce
+	}
+	info, err := c.GetValidatorInfo(c.val, header.Number)
+	if err != nil {
+		info = &ValidatorInfo{
+			LastBlockHeight: big.NewInt(0),
+			TotalSupply:     big.NewInt(0),
+		}
+	}
+	return calcDifficulty(nonce, header.Number, info.TotalSupply, info.LastBlockHeight, make([]byte, 32))
 }
 
-func calcDifficulty(signer common.Address) *big.Int {
-	return new(big.Int).SetUint64(0)
+func (c *Poseidon) checkDifficulty(chain consensus.ChainHeaderReader, header *types.Header, info *ValidatorInfo, beta []byte) error {
+	diff := calcDifficulty(header.Nonce, header.Number, info.TotalSupply, info.LastBlockHeight, beta)
+	if diff.Cmp(header.Difficulty) != 0 {
+		return errInvalidDifficulty
+	}
+	return nil
+}
+
+func calcDifficulty(
+	blockNonce types.BlockNonce,
+	blockNumber *big.Int,
+	totalSupply *big.Int,
+	lastBlockHeight *big.Int,
+	beta []byte,
+) *big.Int {
+	nonce := big.NewInt(0) //uint8
+	if blockNonce.Uint64() < nonceSignSize {
+		nonce = nonce.SetUint64(nonceSignSize - blockNonce.Uint64())
+	}
+	custom := big.NewInt(0)                                       //uint8
+	diffNumber := big.NewInt(0).Sub(blockNumber, lastBlockHeight) //uint32
+	if diffNumber.Cmp(big.NewInt(0)) < 0 {
+		diffNumber = diffNumber.SetInt64(0)
+	} else {
+		diffNumber = diffNumber.Div(diffNumber, big.NewInt(256))
+	}
+	randBeta := big.NewInt(0).SetBytes(beta[:6]) //uint48
+	diff := big.NewInt(0)
+	diff = diff.Or(diff, nonce.Lsh(nonce, 88)).
+		Or(diff, custom.Lsh(custom, 80)).
+		Or(diff, diffNumber.Lsh(diffNumber, 48)).
+		Or(diff, randBeta)
+
+	return diff
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
 func (c *Poseidon) SealHash(header *types.Header) common.Hash {
-	return SealHash(header)
+	return SealHash(header, c.chainConfig.ChainID)
 }
 
 // Close implements consensus.Engine. It's a noop for clique as there are no background threads.
@@ -498,9 +734,9 @@ func (c *Poseidon) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
-func SealHash(header *types.Header) (hash common.Hash) {
+func SealHash(header *types.Header, chainId *big.Int) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
-	encodeSigHeader(hasher, header)
+	encodeSigHeader(hasher, header, chainId)
 	hasher.Sum(hash[:0])
 	return hash
 }
@@ -512,14 +748,15 @@ func SealHash(header *types.Header) (hash common.Hash) {
 // Note, the method requires the extra data to be at least 65 bytes, otherwise it
 // panics. This is done to avoid accidentally using both forms (signature present
 // or not), which could be abused to produce different hashes for the same header.
-func PoseidonRLP(header *types.Header) []byte {
+func PoseidonRLP(header *types.Header, chainId *big.Int) []byte {
 	b := new(bytes.Buffer)
-	encodeSigHeader(b, header)
+	encodeSigHeader(b, header, chainId)
 	return b.Bytes()
 }
 
-func encodeSigHeader(w io.Writer, header *types.Header) {
+func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 	enc := []interface{}{
+		chainId,
 		header.ParentHash,
 		header.UncleHash,
 		header.Coinbase,
@@ -527,14 +764,14 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 		header.TxHash,
 		header.ReceiptHash,
 		header.Bloom,
-		header.Difficulty,
+		//header.Difficulty,
 		header.Number,
 		header.GasLimit,
 		header.GasUsed,
 		header.Time,
-		header.Extra[:len(header.Extra)-crypto.SignatureLength], // Yes, this will panic if extra is too short
+		header.Extra[:len(header.Extra)-crypto.SignatureLength-extraVrf], // Yes, this will panic if extra is too short
 		header.MixDigest,
-		header.Nonce,
+		//header.Nonce,
 	}
 	if header.BaseFee != nil {
 		enc = append(enc, header.BaseFee)
@@ -542,4 +779,110 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 	if err := rlp.Encode(w, enc); err != nil {
 		panic("can't encode: " + err.Error())
 	}
+}
+
+func (c *Poseidon) Heartbeat(number *big.Int) error {
+	currentHeight := number.Uint64()
+
+	if value, ok := c.beatcache.Peek(c.val); ok {
+		if cacheHeight, ok := value.(*big.Int); ok {
+			subResult := big.NewInt(0)
+			subResult.Sub(number, cacheHeight).Abs(subResult)
+
+			if subResult.Cmp(common.Big3) <= 0 {
+				return nil
+			}
+		}
+	}
+
+	info, err := c.GetValidatorInfo(c.val, number)
+	if err != nil {
+		return err
+	}
+	lastBlockHeight := info.LastBlockHeight.Uint64()
+
+	if (currentHeight < lastBlockHeight) || (currentHeight-lastBlockHeight) < heartRate {
+		return nil
+	}
+
+	// method
+	method := "slash"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // cancel when we are finished consuming integers
+
+	//ctx := context.WithValue(context.Background(), "", "")
+
+	data, err := c.validatorSetABI.Pack(method, c.val)
+	if err != nil {
+		log.Error("Unable to pack tx for slash", "error", err)
+		return err
+	}
+
+	// call
+	msgData := (hexutil.Bytes)(data)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
+	gas := (hexutil.Uint64)(uint64(100000))
+
+	//gasPrice := (*hexutil.Big)(big.NewInt(0))
+	_, err = c.txPoolAPI.SendTransaction(ctx, ethapi.TransactionArgs{From: &c.val, To: &toAddress, Data: &msgData, Gas: &gas})
+	if err != nil {
+		return err
+	}
+
+	c.beatcache.Add(c.val, number)
+
+	return nil
+}
+
+// totalFees computes total consumed miner fees in ETH. Block transactions and receipts have to have the same order.
+func totalFees(header *types.Header, txs []*types.Transaction, receipts []*types.Receipt) *big.Int {
+	feesWei := new(big.Int)
+	for i, tx := range txs {
+		minerFee, _ := tx.EffectiveGasTip(header.BaseFee)
+		feesWei.Add(feesWei, new(big.Int).Mul(new(big.Int).SetUint64(receipts[i].GasUsed), minerFee))
+	}
+	return feesWei
+}
+
+// chain context
+type chainContext struct {
+	Chain    consensus.ChainHeaderReader
+	poseidon consensus.Engine
+}
+
+func (c chainContext) Engine() consensus.Engine {
+	return c.poseidon
+}
+
+func (c chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
+	return c.Chain.GetHeader(hash, number)
+}
+
+func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int, totalFee *big.Int) (*types.TransactionsByPriceAndNonce,error) {
+	nonce := state.GetNonce(p.val)
+
+	method := "syncTendermintHeader"
+	// get packed data
+	data, err := p.validatorSetABI.Pack(method,
+		totalFee,
+	)
+	if err != nil {
+		return nil,err
+	}
+	gasPrice := big.NewInt(0)
+	if baseFee != nil {
+		gasPrice = gasPrice.Set(baseFee)
+	}
+	tx := types.NewTransaction(nonce, common.HexToAddress(systemcontracts.ValidatorHubContract), common.Big0, 200000, gasPrice, data)
+	//signtx
+	expectedTx, err := p.signTxFn(accounts.Account{Address: p.val}, tx, p.chainConfig.ChainID)
+	if err != nil {
+		return nil,err
+	}
+
+	txs := make(map[common.Address]types.Transactions)
+	txs[p.val] = types.Transactions{expectedTx}
+
+	return types.NewTransactionsByPriceAndNonce(signer, txs, baseFee),nil
 }

@@ -167,7 +167,7 @@ func (api *ExternalSigner) SignData(account accounts.Account, mimeType string, d
 		return nil, err
 	}
 	// If V is on 27/28-form, convert to 0/1 for Clique
-	if mimeType == accounts.MimetypeClique && (res[64] == 27 || res[64] == 28) {
+	if (mimeType == accounts.MimetypeClique || mimeType == accounts.MimetypePoseidon) && (res[64] == 27 || res[64] == 28) {
 		res[64] -= 27 // Transform V from 27/28 to 0/1 for Clique use
 	}
 	return res, nil
@@ -204,13 +204,18 @@ func (api *ExternalSigner) SignTx(account accounts.Account, tx *types.Transactio
 		to = &t
 	}
 	args := &core.SendTxArgs{
-		Data:     &data,
-		Nonce:    hexutil.Uint64(tx.Nonce()),
-		Value:    hexutil.Big(*tx.Value()),
-		Gas:      hexutil.Uint64(tx.Gas()),
-		GasPrice: hexutil.Big(*tx.GasPrice()),
-		To:       to,
-		From:     common.NewMixedcaseAddress(account.Address),
+		Data:  &data,
+		Nonce: hexutil.Uint64(tx.Nonce()),
+		Value: hexutil.Big(*tx.Value()),
+		Gas:   hexutil.Uint64(tx.Gas()),
+		To:    to,
+		From:  common.NewMixedcaseAddress(account.Address),
+	}
+	if tx.GasFeeCap() != nil {
+		args.MaxFeePerGas = (*hexutil.Big)(tx.GasFeeCap())
+		args.MaxPriorityFeePerGas = (*hexutil.Big)(tx.GasTipCap())
+	} else {
+		args.GasPrice = (*hexutil.Big)(tx.GasPrice())
 	}
 	// We should request the default chain id that we're operating with
 	// (the chain we're executing on)
@@ -258,4 +263,12 @@ func (api *ExternalSigner) pingVersion() (string, error) {
 		return "", err
 	}
 	return v, nil
+}
+
+func (api *ExternalSigner) VrfProve(alpha []byte) (beta, pi []byte, err error) {
+	return nil, nil, fmt.Errorf("VRF is not supported")
+}
+
+func (api *ExternalSigner) VrfVerify(alpha, pi []byte) (beta []byte, err error) {
+	return nil, fmt.Errorf("VRF is not supported")
 }

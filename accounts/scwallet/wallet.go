@@ -1083,3 +1083,11 @@ func makeRecoverableSignature(hash, sig, expectedPubkey []byte) ([]byte, error) 
 	}
 	return nil, ErrPubkeyMismatch
 }
+
+func (w *Wallet) VrfProve(alpha []byte) (beta, pi []byte, err error) {
+	return nil, nil, fmt.Errorf("VRF is not supported")
+}
+
+func (w *Wallet) VrfVerify(alpha, pi []byte) (beta []byte, err error) {
+	return nil, fmt.Errorf("VRF is not supported")
+}

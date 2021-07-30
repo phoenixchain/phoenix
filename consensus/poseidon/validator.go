@@ -13,14 +13,15 @@ import (
 )
 
 type ValidatorInfo struct {
-	Name        string
-	RewardAddr  common.Address
-	TotalSupply *big.Int
+	Name            string         `json:"name"`
+	RewardAddr      common.Address `json:"reward_addr"`
+	TotalSupply     *big.Int       `json:"total_supply"`
+	LastBlockHeight *big.Int       `json:"last_block_height"`
 }
 
 // ==========================  interaction with contract/account =========
 
-func (p *Poseidon) IsValidator(validator common.Address) (bool, error) {
+func (p *Poseidon) IsValidator(validator common.Address, blockNumber *big.Int) (bool, error) {
 	// method
 	method := "isValidator"
 
@@ -34,26 +35,27 @@ func (p *Poseidon) IsValidator(validator common.Address) (bool, error) {
 	}
 	// call
 	msgData := (hexutil.Bytes)(data)
-	toAddress := common.HexToAddress(systemcontracts.ValidatorContract)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
+		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
-	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)
+	}, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()-1)), nil)
 	if err != nil {
 		return false, err
 	}
 
-	out := false
+	out := new(bool)
 
-	if err := p.validatorSetABI.UnpackIntoInterface(&out, method, result); err != nil {
+	if err := p.validatorSetABI.UnpackIntoInterface(out, method, result); err != nil {
 		return false, err
 	}
-	return out, nil
+	return *out, nil
 }
 
-func (p *Poseidon) GetValidatorInfo(validator common.Address) (*ValidatorInfo, error) {
+func (p *Poseidon) GetValidatorInfo(validator common.Address, blockNumber *big.Int) (*ValidatorInfo, error) {
 	// method
 	method := "getValidatorInfo"
 
@@ -67,13 +69,14 @@ func (p *Poseidon) GetValidatorInfo(validator common.Address) (*ValidatorInfo, e
 	}
 	// call
 	msgData := (hexutil.Bytes)(data)
-	toAddress := common.HexToAddress(systemcontracts.ValidatorContract)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
+		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
-	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)
+	}, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()-1)), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +89,7 @@ func (p *Poseidon) GetValidatorInfo(validator common.Address) (*ValidatorInfo, e
 	return out, nil
 }
 
-func (p *Poseidon) IsProposer(validator common.Address) (bool, error) {
+func (p *Poseidon) IsProposer(validator common.Address, blockNumber *big.Int) (bool, error) {
 	// method
 	method := "isProposer"
 
@@ -100,26 +103,26 @@ func (p *Poseidon) IsProposer(validator common.Address) (bool, error) {
 	}
 	// call
 	msgData := (hexutil.Bytes)(data)
-	toAddress := common.HexToAddress(systemcontracts.ValidatorContract)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
+		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
-	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)
+	}, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()-1)), nil)
 	if err != nil {
 		return false, err
 	}
+	out := new(bool)
 
-	out := false
-
-	if err := p.validatorSetABI.UnpackIntoInterface(&out, method, result); err != nil {
+	if err := p.validatorSetABI.UnpackIntoInterface(out, method, result); err != nil {
 		return false, err
 	}
-	return out, nil
+	return *out, nil
 }
 
-func (p *Poseidon) GetCommitteeSupply() (*big.Int, error) {
+func (p *Poseidon) GetCommitteeSupply(blockNumber *big.Int) (*big.Int, error) {
 	// method
 	method := "getCommitteeSupply"
 
@@ -133,20 +136,55 @@ func (p *Poseidon) GetCommitteeSupply() (*big.Int, error) {
 	}
 	// call
 	msgData := (hexutil.Bytes)(data)
-	toAddress := common.HexToAddress(systemcontracts.ValidatorContract)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
+		From: &p.val,
 		To:   &toAddress,
 		Data: &msgData,
-	}, rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber), nil)
+	}, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()-1)), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	out := new(big.Int)
+	var out *big.Int
 
-	if err := p.validatorSetABI.UnpackIntoInterface(out, method, result); err != nil {
+	if err := p.validatorSetABI.UnpackIntoInterface(&out, method, result); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (p *Poseidon) GetValidators(blockNumber *big.Int) ([]common.Address, error) {
+	// method
+	method := "getValidators"
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // cancel when we are finished consuming integers
+
+	data, err := p.validatorSetABI.Pack(method)
+	if err != nil {
+		log.Error("Unable to pack tx for getValidators", "error", err)
+		return nil, err
+	}
+	// call
+	msgData := (hexutil.Bytes)(data)
+	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
+	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
+		Gas:  &gas,
+		From: &p.val,
+		To:   &toAddress,
+		Data: &msgData,
+	}, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()-1)), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]common.Address, 0)
+
+	if err := p.validatorSetABI.UnpackIntoInterface(&out, method, result); err != nil {
 		return nil, err
 	}
 	return out, nil

@@ -3,15 +3,17 @@ package poseidon
 const validatorSetABI = `
 [
 	{
+		"anonymous": false,
 		"inputs": [
 			{
+				"indexed": false,
 				"internalType": "address",
-				"name": "_factory",
+				"name": "_validator",
 				"type": "address"
 			}
 		],
-		"stateMutability": "nonpayable",
-		"type": "constructor"
+		"name": "emitvalidatorRegister",
+		"type": "event"
 	},
 	{
 		"anonymous": false,
@@ -19,7 +21,7 @@ const validatorSetABI = `
 			{
 				"indexed": false,
 				"internalType": "uint256",
-				"name": "requiredDeposit",
+				"name": "requiredRegister",
 				"type": "uint256"
 			},
 			{
@@ -30,19 +32,6 @@ const validatorSetABI = `
 			}
 		],
 		"name": "paramChange",
-		"type": "event"
-	},
-	{
-		"anonymous": false,
-		"inputs": [
-			{
-				"indexed": false,
-				"internalType": "address",
-				"name": "_validator",
-				"type": "address"
-			}
-		],
-		"name": "validatorRegister",
 		"type": "event"
 	},
 	{
@@ -73,7 +62,33 @@ const validatorSetABI = `
 	},
 	{
 		"inputs": [],
-		"name": "INIT_REQUIRED_DEPOSIT",
+		"name": "INIT_PROPOER_HEIGHT",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "INIT_REQUIRED_REGISTER",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "MINSUPPLY",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -112,6 +127,32 @@ const validatorSetABI = `
 	},
 	{
 		"inputs": [],
+		"name": "alreadyInit",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "genesisMinter",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
 		"name": "getCommittee",
 		"outputs": [
 			{
@@ -129,7 +170,7 @@ const validatorSetABI = `
 		"outputs": [
 			{
 				"internalType": "uint256",
-				"name": "",
+				"name": "committeeSupply",
 				"type": "uint256"
 			}
 		],
@@ -149,6 +190,68 @@ const validatorSetABI = `
 			{
 				"internalType": "uint256",
 				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_validator",
+				"type": "address"
+			}
+		],
+		"name": "getReward",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_validator",
+				"type": "address"
+			}
+		],
+		"name": "getSlashHeight",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "",
+				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_validator",
+				"type": "address"
+			}
+		],
+		"name": "getSlashState",
+		"outputs": [
+			{
+				"internalType": "uint256",
+				"name": "preslah",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "nextslah",
 				"type": "uint256"
 			}
 		],
@@ -192,6 +295,11 @@ const validatorSetABI = `
 				"internalType": "uint256",
 				"name": "totalSupply",
 				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "lastBlockHeight",
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -212,12 +320,12 @@ const validatorSetABI = `
 	},
 	{
 		"inputs": [],
-		"name": "governance",
+		"name": "idNum",
 		"outputs": [
 			{
-				"internalType": "address",
+				"internalType": "uint256",
 				"name": "",
-				"type": "address"
+				"type": "uint256"
 			}
 		],
 		"stateMutability": "view",
@@ -225,12 +333,25 @@ const validatorSetABI = `
 	},
 	{
 		"inputs": [],
-		"name": "idNum",
+		"name": "init",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "validator",
+				"type": "address"
+			}
+		],
+		"name": "isGenesisPeriod",
 		"outputs": [
 			{
-				"internalType": "uint256",
+				"internalType": "bool",
 				"name": "",
-				"type": "uint256"
+				"type": "bool"
 			}
 		],
 		"stateMutability": "view",
@@ -278,28 +399,9 @@ const validatorSetABI = `
 		"inputs": [
 			{
 				"internalType": "address",
-				"name": "",
+				"name": "_validator",
 				"type": "address"
-			}
-		],
-		"name": "proposersMap",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "count",
-				"type": "uint256"
 			},
-			{
-				"internalType": "bool",
-				"name": "exist",
-				"type": "bool"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
 			{
 				"internalType": "string",
 				"name": "_name",
@@ -312,42 +414,22 @@ const validatorSetABI = `
 		"type": "function"
 	},
 	{
-		"inputs": [],
-		"name": "requiredDeposit",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [],
-		"name": "requiredDues",
-		"outputs": [
-			{
-				"internalType": "uint256",
-				"name": "",
-				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
 		"inputs": [
 			{
 				"internalType": "address",
-				"name": "_governance",
+				"name": "",
 				"type": "address"
 			}
 		],
-		"name": "setGovernance",
-		"outputs": [],
-		"stateMutability": "nonpayable",
+		"name": "rewardValidator",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -364,6 +446,19 @@ const validatorSetABI = `
 		"type": "function"
 	},
 	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "_fee",
+				"type": "uint256"
+			}
+		],
+		"name": "syncTendermintHeader",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
 		"inputs": [],
 		"name": "unregister",
 		"outputs": [],
@@ -371,19 +466,8 @@ const validatorSetABI = `
 		"type": "function"
 	},
 	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "_deposit",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "_dues",
-				"type": "uint256"
-			}
-		],
-		"name": "updateParam",
+		"inputs": [],
+		"name": "updateValidatorSupply",
 		"outputs": [],
 		"stateMutability": "nonpayable",
 		"type": "function"
@@ -428,7 +512,45 @@ const validatorSetABI = `
 				"type": "address"
 			}
 		],
-		"name": "validators",
+		"name": "validatorRegister",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "validatorsExist",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "validatorsMap",
 		"outputs": [
 			{
 				"internalType": "uint256",
@@ -447,7 +569,7 @@ const validatorSetABI = `
 			},
 			{
 				"internalType": "uint256",
-				"name": "deposit",
+				"name": "register",
 				"type": "uint256"
 			},
 			{
@@ -464,25 +586,6 @@ const validatorSetABI = `
 				"internalType": "uint256",
 				"name": "totalSupply",
 				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "",
-				"type": "address"
-			}
-		],
-		"name": "validatorsExistMap",
-		"outputs": [
-			{
-				"internalType": "bool",
-				"name": "",
-				"type": "bool"
 			}
 		],
 		"stateMutability": "view",

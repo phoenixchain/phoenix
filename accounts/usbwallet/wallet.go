@@ -638,3 +638,11 @@ func (w *wallet) SignTextWithPassphrase(account accounts.Account, passphrase str
 func (w *wallet) SignTxWithPassphrase(account accounts.Account, passphrase string, tx *types.Transaction, chainID *big.Int) (*types.Transaction, error) {
 	return w.SignTx(account, tx, chainID)
 }
+
+func (w *wallet) VrfProve(alpha []byte) (beta, pi []byte, err error) {
+	return nil, nil, fmt.Errorf("VRF is not supported")
+}
+
+func (w *wallet) VrfVerify(alpha, pi []byte) (beta []byte, err error) {
+	return nil, fmt.Errorf("VRF is not supported")
+}

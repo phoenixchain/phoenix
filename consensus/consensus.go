@@ -27,10 +27,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-var (
-	SystemAddress = common.HexToAddress("0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE")
-)
-
 // ChainHeaderReader defines a small collection of methods needed to access the local
 // blockchain during header verification.
 type ChainHeaderReader interface {
@@ -128,4 +124,12 @@ type PoW interface {
 
 	// Hashrate returns the current mining hashrate of a PoW consensus engine.
 	Hashrate() float64
+}
+
+type PoSA interface {
+	Engine
+
+	Heartbeat(number *big.Int) error
+
+	GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int, totalFee *big.Int) (*types.TransactionsByPriceAndNonce,error)
 }

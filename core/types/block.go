@@ -122,12 +122,17 @@ func (h *Header) SanityCheck() error {
 		return fmt.Errorf("too large block number: bitlen %d", h.Number.BitLen())
 	}
 	if h.Difficulty != nil {
-		if diffLen := h.Difficulty.BitLen(); diffLen > 80 {
+		if diffLen := h.Difficulty.BitLen(); diffLen > 100 {
 			return fmt.Errorf("too large block difficulty: bitlen %d", diffLen)
 		}
 	}
 	if eLen := len(h.Extra); eLen > 100*1024 {
 		return fmt.Errorf("too large block extradata: size %d", eLen)
+	}
+	if h.BaseFee != nil {
+		if bfLen := h.BaseFee.BitLen(); bfLen > 256 {
+			return fmt.Errorf("too large base fee: bitlen %d", bfLen)
+		}
 	}
 	return nil
 }

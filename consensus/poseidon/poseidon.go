@@ -457,9 +457,6 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Poseidon) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	if c.vrfFn == nil {
-		return errInvalidVrfFn
-	}
 	// If the block isn't a checkpoint, cast a random vote (good enough for now)
 	header.Nonce = types.BlockNonce{}
 
@@ -579,6 +576,9 @@ func (c *Poseidon) sortition(chain consensus.ChainHeaderReader, header *types.He
 // Seal implements consensus.Engine, attempting to create a sealed block using
 // the local signing credentials.
 func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+	if c.vrfFn == nil {
+		return errInvalidVrfFn
+	}
 	header := block.Header()
 	if isProposer, err := c.IsProposer(c.val, header.Number); err != nil || isProposer == false {
 		return errUnauthorizedProposer

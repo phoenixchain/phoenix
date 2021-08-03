@@ -28,8 +28,8 @@ func (api *API) GetValidatorInfo(validatorAddr common.Address, blockNumber *big.
 	return api.poseidon.GetValidatorInfo(validatorAddr, blockNumber)
 }
 
-func (api *API) GetCommitteeSupply(blockNumber *big.Int) (*big.Int, error) {
-	return api.poseidon.GetCommitteeSupply(blockNumber)
+func (api *API) GetCommitteeSupply( blockNumber *big.Int) (*big.Int, error) {
+	return api.poseidon.GetCommitteeSupply(blockNumber,common.Address{})
 }
 
 func (api *API) IsProposer(validatorAddr common.Address, blockNumber *big.Int) (bool, error) {

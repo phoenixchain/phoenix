@@ -389,8 +389,9 @@ func (c *Poseidon) verifyCascadingFields(chain consensus.ChainHeaderReader, head
 	}
 
 	// All basic checks passed, verify the seal and return
-	if seal == false {
+	if seal == true {
 		if err := c.verifySeal(chain, header, parents); err != nil {
+			log.Warn("Poseidon verifySeal fail", "number", header.Number, "err", err)
 			return err
 		}
 	}
@@ -429,12 +430,12 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 	if err != nil {
 		return err
 	}
-	committeeSupply, err := c.GetCommitteeSupply(header.Number)
+	committeeSupply, err := c.GetCommitteeSupply(header.Number, signer)
 	if err != nil {
 		return err
 	}
 	pi := make([]byte, extraVrf)
-	copy(header.Extra[len(header.Extra)-extraSeal-extraVrf:len(header.Extra)-extraSeal], pi)
+	copy(pi, header.Extra[len(header.Extra)-extraSeal-extraVrf:len(header.Extra)-extraSeal])
 
 	alpha := c.GetVrfAlpha(header.ParentHash, header.Nonce)
 	publicKey, err := crypto.UnmarshalPubkey(pubkey)
@@ -588,7 +589,7 @@ func (c *Poseidon) Seal(chain consensus.ChainHeaderReader, block *types.Block, r
 	if err != nil {
 		return err
 	}
-	committeeSupply, err := c.GetCommitteeSupply(header.Number)
+	committeeSupply, err := c.GetCommitteeSupply(header.Number, c.val)
 	if err != nil {
 		return err
 	}
@@ -859,7 +860,7 @@ func (c chainContext) GetHeader(hash common.Hash, number uint64) *types.Header {
 	return c.Chain.GetHeader(hash, number)
 }
 
-func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int, totalFee *big.Int) (*types.TransactionsByPriceAndNonce,error) {
+func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateDB, baseFee *big.Int, totalFee *big.Int) (*types.TransactionsByPriceAndNonce, error) {
 	nonce := state.GetNonce(p.val)
 
 	method := "syncTendermintHeader"
@@ -868,7 +869,7 @@ func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateD
 		totalFee,
 	)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 	gasPrice := big.NewInt(0)
 	if baseFee != nil {
@@ -878,11 +879,11 @@ func (p *Poseidon) GetSystemTransaction(signer types.Signer, state *state.StateD
 	//signtx
 	expectedTx, err := p.signTxFn(accounts.Account{Address: p.val}, tx, p.chainConfig.ChainID)
 	if err != nil {
-		return nil,err
+		return nil, err
 	}
 
 	txs := make(map[common.Address]types.Transactions)
 	txs[p.val] = types.Transactions{expectedTx}
 
-	return types.NewTransactionsByPriceAndNonce(signer, txs, baseFee),nil
+	return types.NewTransactionsByPriceAndNonce(signer, txs, baseFee), nil
 }

@@ -122,7 +122,7 @@ func (p *Poseidon) IsProposer(validator common.Address, blockNumber *big.Int) (b
 	return *out, nil
 }
 
-func (p *Poseidon) GetCommitteeSupply(blockNumber *big.Int) (*big.Int, error) {
+func (p *Poseidon) GetCommitteeSupply(blockNumber *big.Int,signer common.Address) (*big.Int, error) {
 	// method
 	method := "getCommitteeSupply"
 
@@ -140,7 +140,7 @@ func (p *Poseidon) GetCommitteeSupply(blockNumber *big.Int) (*big.Int, error) {
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
-		From: &p.val,
+		From: &signer,
 		To:   &toAddress,
 		Data: &msgData,
 	}, rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()-1)), nil)

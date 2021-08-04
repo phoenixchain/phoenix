@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"math"
 	"math/big"
 )
 
@@ -36,7 +35,7 @@ func (p *Poseidon) IsValidator(validator common.Address, blockNumber *big.Int) (
 	// call
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	gas := (hexutil.Uint64)(gasCap)
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
 		From: &p.val,
@@ -70,7 +69,7 @@ func (p *Poseidon) GetValidatorInfo(validator common.Address, blockNumber *big.I
 	// call
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	gas := (hexutil.Uint64)(gasCap)
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
 		From: &p.val,
@@ -104,7 +103,7 @@ func (p *Poseidon) IsProposer(validator common.Address, blockNumber *big.Int) (b
 	// call
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	gas := (hexutil.Uint64)(gasCap)
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
 		From: &p.val,
@@ -122,7 +121,7 @@ func (p *Poseidon) IsProposer(validator common.Address, blockNumber *big.Int) (b
 	return *out, nil
 }
 
-func (p *Poseidon) GetCommitteeSupply(blockNumber *big.Int,signer common.Address) (*big.Int, error) {
+func (p *Poseidon) GetCommitteeSupply(blockNumber *big.Int, signer common.Address) (*big.Int, error) {
 	// method
 	method := "getCommitteeSupply"
 
@@ -137,7 +136,7 @@ func (p *Poseidon) GetCommitteeSupply(blockNumber *big.Int,signer common.Address
 	// call
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	gas := (hexutil.Uint64)(gasCap)
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
 		From: &signer,
@@ -171,7 +170,7 @@ func (p *Poseidon) GetValidators(blockNumber *big.Int) ([]common.Address, error)
 	// call
 	msgData := (hexutil.Bytes)(data)
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	gas := (hexutil.Uint64)(gasCap)
 	result, err := p.ethAPI.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
 		From: &p.val,

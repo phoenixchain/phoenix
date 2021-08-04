@@ -59,6 +59,8 @@ const (
 
 	nonceSignSize = 255
 	heartRate     = 100
+
+	gasCap = 50000000
 )
 
 // Spos proof-of-authority protocol constants.

@@ -175,8 +175,11 @@ type VrfProveFn func(alpha []byte) (beta, pi []byte, err error)
 func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) ([]byte, common.Address, error) {
 	// If the signature's already cached, return that
 	hash := header.Hash()
-	if address, known := sigcache.Get(hash); known {
-		return nil, address.(common.Address), nil
+	if data, known := sigcache.Get(hash); known {
+		pubkey := data.([]byte)
+		var addr common.Address
+		copy(addr[:], crypto.Keccak256(pubkey[1:])[12:])
+		return pubkey, addr, nil
 	}
 	// Retrieve the signature from the header extra-data
 	if len(header.Extra) < extraSeal {
@@ -192,7 +195,7 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (
 	var addr common.Address
 	copy(addr[:], crypto.Keccak256(pubkey[1:])[12:])
 
-	sigcache.Add(hash, addr)
+	sigcache.Add(hash, pubkey)
 	return pubkey, addr, nil
 }
 

@@ -23,7 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -71,10 +71,10 @@ make sure to use this feature with great caution!`,
 		out := outputInspect{
 			Address: key.Address.Hex(),
 			PublicKey: hex.EncodeToString(
-				crypto.FromECDSAPub(&key.PrivateKey.PublicKey)),
+				oqs_crypto.FromECDSAPub(&key.PrivateKey.PublicKey)),
 		}
 		if showPrivate {
-			out.PrivateKey = hex.EncodeToString(crypto.FromECDSA(key.PrivateKey))
+			out.PrivateKey = hex.EncodeToString(oqs_crypto.FromECDSA(key.PrivateKey))
 		}
 
 		if ctx.Bool(jsonFlag.Name) {

@@ -17,7 +17,7 @@
 package ethtest
 
 import (
-	"crypto/ecdsa"
+	"github.com/ethereum/go-ethereum/oqs/oqs_ecdsa"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
@@ -126,7 +126,7 @@ func (pt PooledTransactions) Code() int { return 26 }
 // Conn represents an individual connection with a peer
 type Conn struct {
 	*rlpx.Conn
-	ourKey                 *ecdsa.PrivateKey
+	ourKey                 *oqs_ecdsa.PrivateKey
 	negotiatedProtoVersion uint
 	ourHighestProtoVersion uint
 	caps                   []p2p.Cap

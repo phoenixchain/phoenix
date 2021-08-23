@@ -17,14 +17,13 @@
 package keystore
 
 import (
-	"crypto/ecdsa"
-	"github.com/ethereum/go-ethereum/crypto/vrf"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_ecdsa"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // keystoreWallet implements the accounts.Wallet interface for the original
@@ -151,7 +150,7 @@ func (w *keystoreWallet) SignTxWithPassphrase(account accounts.Account, passphra
 	return w.keystore.SignTxWithPassphrase(account, passphrase, tx, chainID)
 }
 
-func (w *keystoreWallet) getPrivateKey(account accounts.Account) (*ecdsa.PrivateKey, error) {
+func (w *keystoreWallet) getPrivateKey(account accounts.Account) (*oqs_ecdsa.PrivateKey, error) {
 	w.keystore.mu.RLock()
 	defer w.keystore.mu.RUnlock()
 
@@ -166,7 +165,9 @@ func (w *keystoreWallet) VrfProve(alpha []byte) (beta, pi []byte, err error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	return vrf.Prove(privateKey, alpha)
+	//return vrf.Prove(privateKey, alpha)
+	_ = privateKey
+	return nil, nil, nil
 }
 
 func (w *keystoreWallet) VrfVerify(alpha, pi []byte) (beta []byte, err error) {
@@ -175,9 +176,11 @@ func (w *keystoreWallet) VrfVerify(alpha, pi []byte) (beta []byte, err error) {
 		return nil, err
 	}
 	publicKey := privateKey.Public()
-	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	publicKeyECDSA, ok := publicKey.(*oqs_ecdsa.PublicKey)
 	if !ok {
 		return nil, accounts.ErrUnknownAccount
 	}
-	return vrf.Verify(publicKeyECDSA, alpha, pi)
+	//return vrf.Verify(publicKeyECDSA, alpha, pi)
+	_ = publicKeyECDSA
+	return nil, nil
 }

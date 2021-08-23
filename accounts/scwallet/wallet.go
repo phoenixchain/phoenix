@@ -26,6 +26,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
 	"regexp"
 	"sort"
@@ -37,7 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"github.com/ethereum/go-ethereum/log"
 	pcsc "github.com/gballet/go-libpcsclite"
 	"github.com/status-im/keycard-go/derivationpath"
@@ -917,13 +918,13 @@ func (s *Session) initialize(seed []byte) error {
 	mac.Write(seed)
 	seed = mac.Sum(nil)
 
-	key, err := crypto.ToECDSA(seed[:32])
+	key, err := oqs_crypto.ToECDSA(seed[:32])
 	if err != nil {
 		return err
 	}
 
 	id := initializeData{}
-	id.PublicKey = crypto.FromECDSAPub(&key.PublicKey)
+	id.PublicKey = oqs_crypto.FromECDSAPub(&key.PublicKey)
 	id.PrivateKey = seed[:32]
 	id.ChainCode = seed[32:]
 	data, err := asn1.Marshal(id)
@@ -986,11 +987,11 @@ func (s *Session) derive(path accounts.DerivationPath) (accounts.Account, error)
 	if err := confirmPublicKey(sig, sigdata.PublicKey); err != nil {
 		return accounts.Account{}, err
 	}
-	pub, err := crypto.UnmarshalPubkey(sigdata.PublicKey)
+	pub, err := oqs_crypto.UnmarshalPubkey(sigdata.PublicKey)
 	if err != nil {
 		return accounts.Account{}, err
 	}
-	return s.Wallet.makeAccount(crypto.PubkeyToAddress(*pub), path), nil
+	return s.Wallet.makeAccount(oqs_crypto.PubkeyToAddress(*pub), path), nil
 }
 
 // keyExport contains information on an exported keypair.
@@ -1070,7 +1071,7 @@ func makeRecoverableSignature(hash, sig, expectedPubkey []byte) ([]byte, error) 
 	var libraryError error
 	for v := 0; v < 2; v++ {
 		sig[64] = byte(v)
-		if pubkey, err := crypto.Ecrecover(hash, sig); err == nil {
+		if pubkey, err := oqs_crypto.Ecrecover(hash, sig); err == nil {
 			if bytes.Equal(pubkey, expectedPubkey) {
 				return sig, nil
 			}

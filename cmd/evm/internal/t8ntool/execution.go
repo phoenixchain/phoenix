@@ -18,6 +18,7 @@ package t8ntool
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
 	"os"
 
@@ -29,7 +30,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"

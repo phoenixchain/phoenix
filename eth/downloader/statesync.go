@@ -260,8 +260,8 @@ func (d *Downloader) spindownStateSync(active map[string]*stateReq, finished []*
 type stateSync struct {
 	d *Downloader // Downloader instance to access and manage current peerset
 
-	root   common.Hash        // State root currently being synced
-	sched  *trie.Sync         // State trie sync scheduler defining the tasks
+	root   common.Hash            // State root currently being synced
+	sched  *trie.Sync             // State trie sync scheduler defining the tasks
 	keccak crypto.KeccakState // Keccak256 hasher to verify deliveries with
 
 	trieTasks map[common.Hash]*trieTask // Set of trie node tasks currently queued for retrieval

@@ -18,12 +18,12 @@ package snapshot
 
 import (
 	"bytes"
+	"github.com/ethereum/go-ethereum/crypto"
 	"math/rand"
 	"testing"
 
 	"github.com/VictoriaMetrics/fastcache"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 )
 

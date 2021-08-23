@@ -17,7 +17,7 @@
 package t8ntool
 
 import (
-	"crypto/ecdsa"
+	"github.com/ethereum/go-ethereum/oqs/oqs_ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,7 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -232,7 +232,7 @@ func Main(ctx *cli.Context) error {
 // txWithKey is a helper-struct, to allow us to use the types.Transaction along with
 // a `secretKey`-field, for input
 type txWithKey struct {
-	key *ecdsa.PrivateKey
+	key *oqs_ecdsa.PrivateKey
 	tx  *types.Transaction
 }
 
@@ -247,7 +247,7 @@ func (t *txWithKey) UnmarshalJSON(input []byte) error {
 	}
 	if key.Key != nil {
 		k := key.Key.Hex()[2:]
-		if ecdsaKey, err := crypto.HexToECDSA(k); err != nil {
+		if ecdsaKey, err := oqs_crypto.HexToECDSA(k); err != nil {
 			return err
 		} else {
 			t.key = ecdsaKey

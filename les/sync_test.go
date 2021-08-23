@@ -18,6 +18,7 @@ package les
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
 	"testing"
 	"time"
@@ -25,7 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -85,7 +86,7 @@ func testCheckpointSyncing(t *testing.T, protocol int, syncMode int) {
 			header := server.backend.Blockchain().CurrentHeader()
 
 			data := append([]byte{0x19, 0x00}, append(oracleAddr.Bytes(), append([]byte{0, 0, 0, 0, 0, 0, 0, 0}, cp.Hash().Bytes()...)...)...)
-			sig, _ := crypto.Sign(crypto.Keccak256(data), signerKey)
+			sig, _ := oqs_crypto.Sign(crypto.Keccak256(data), signerKey)
 			sig[64] += 27 // Transform V from 0/1 to 27/28 according to the yellow paper
 			auth, _ := bind.NewKeyedTransactorWithChainID(signerKey, big.NewInt(1337))
 			if _, err := server.handler.server.oracle.Contract().RegisterCheckpoint(auth, cp.SectionIndex, cp.Hash().Bytes(), new(big.Int).Sub(header.Number, big.NewInt(1)), header.ParentHash, [][]byte{sig}); err != nil {
@@ -173,7 +174,7 @@ func testMissOracleBackend(t *testing.T, hasCheckpoint bool, protocol int) {
 	header := server.backend.Blockchain().CurrentHeader()
 
 	data := append([]byte{0x19, 0x00}, append(oracleAddr.Bytes(), append([]byte{0, 0, 0, 0, 0, 0, 0, 0}, cp.Hash().Bytes()...)...)...)
-	sig, _ := crypto.Sign(crypto.Keccak256(data), signerKey)
+	sig, _ := oqs_crypto.Sign(crypto.Keccak256(data), signerKey)
 	sig[64] += 27 // Transform V from 0/1 to 27/28 according to the yellow paper
 	auth, _ := bind.NewKeyedTransactorWithChainID(signerKey, big.NewInt(1337))
 	if _, err := server.handler.server.oracle.Contract().RegisterCheckpoint(auth, cp.SectionIndex, cp.Hash().Bytes(), new(big.Int).Sub(header.Number, big.NewInt(1)), header.ParentHash, [][]byte{sig}); err != nil {

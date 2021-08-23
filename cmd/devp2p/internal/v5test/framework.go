@@ -18,14 +18,14 @@ package v5test
 
 import (
 	"bytes"
-	"crypto/ecdsa"
+	"github.com/ethereum/go-ethereum/oqs/oqs_ecdsa"
 	"encoding/binary"
 	"fmt"
 	"net"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/mclock"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"github.com/ethereum/go-ethereum/p2p/discover/v5wire"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
@@ -55,7 +55,7 @@ const waitTime = 300 * time.Millisecond
 // conn is a connection to the node under test.
 type conn struct {
 	localNode  *enode.LocalNode
-	localKey   *ecdsa.PrivateKey
+	localKey   *oqs_ecdsa.PrivateKey
 	remote     *enode.Node
 	remoteAddr *net.UDPAddr
 	listeners  []net.PacketConn
@@ -73,7 +73,7 @@ type logger interface {
 
 // newConn sets up a connection to the given node.
 func newConn(dest *enode.Node, log logger) *conn {
-	key, err := crypto.GenerateKey()
+	key, err := oqs_crypto.GenerateKey()
 	if err != nil {
 		panic(err)
 	}

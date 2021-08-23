@@ -17,7 +17,7 @@
 package tracers
 
 import (
-	"crypto/ecdsa"
+	"github.com/ethereum/go-ethereum/oqs/oqs_ecdsa"
 	"crypto/rand"
 	"encoding/json"
 	"io/ioutil"
@@ -34,7 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/tests"
@@ -124,7 +124,7 @@ func TestPrestateTracerCreate2(t *testing.T) {
 	unsignedTx := types.NewTransaction(1, common.HexToAddress("0x00000000000000000000000000000000deadbeef"),
 		new(big.Int), 5000000, big.NewInt(1), []byte{})
 
-	privateKeyECDSA, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
+	privateKeyECDSA, err := oqs_ecdsa.GenerateKey(oqs_crypto.S256(), rand.Reader)
 	if err != nil {
 		t.Fatalf("err %v", err)
 	}
@@ -302,8 +302,8 @@ func jsonEqual(x, y interface{}) bool {
 }
 
 func BenchmarkTransactionTrace(b *testing.B) {
-	key, _ := crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-	from := crypto.PubkeyToAddress(key.PublicKey)
+	key, _ := oqs_crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	from := oqs_crypto.PubkeyToAddress(key.PublicKey)
 	gas := uint64(1000000) // 1M gas
 	to := common.HexToAddress("0x00000000000000000000000000000000deadbeef")
 	signer := types.LatestSignerForChainID(big.NewInt(1337))

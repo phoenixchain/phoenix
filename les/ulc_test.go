@@ -23,7 +23,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -132,7 +132,7 @@ func newTestServerPeer(t *testing.T, blocks int, protocol int) (*testServer, *en
 		nopruning: true,
 	}
 	s, _, teardown := newClientServerEnv(t, netconfig)
-	key, err := crypto.GenerateKey()
+	key, err := oqs_crypto.GenerateKey()
 	if err != nil {
 		t.Fatal("generate key err:", err)
 	}

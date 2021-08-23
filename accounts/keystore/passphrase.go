@@ -33,6 +33,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/crypto"
 	"io"
 	"io/ioutil"
 	"os"
@@ -41,7 +42,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/scrypt"
@@ -227,15 +228,17 @@ func DecryptKey(keyjson []byte, auth string) (*Key, error) {
 	if err != nil {
 		return nil, err
 	}
-	key := crypto.ToECDSAUnsafe(keyBytes)
+	key := oqs_crypto.ToECDSAUnsafe(keyBytes)
 	id, err := uuid.FromBytes(keyId)
 	if err != nil {
 		return nil, err
 	}
+	ecdsaKey := crypto.ToECDSAUnsafe(keyBytes)
 	return &Key{
 		Id:         id,
-		Address:    crypto.PubkeyToAddress(key.PublicKey),
+		Address:    oqs_crypto.PubkeyToAddress(key.PublicKey),
 		PrivateKey: key,
+		EcdsaPrivateKey: ecdsaKey,
 	}, nil
 }
 

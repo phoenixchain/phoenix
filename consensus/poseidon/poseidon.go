@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/systemcontracts"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/vrf"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"io"
@@ -39,7 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -65,7 +66,7 @@ const (
 
 // Spos proof-of-authority protocol constants.
 var (
-	extraVanity = 32                     // Fixed number of extra-data prefix bytes reserved for signer vanity
+	extraVanity = 32                         // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraSeal   = crypto.SignatureLength // Fixed number of extra-data suffix bytes reserved for signer seal
 	extraVrf    = 81
 
@@ -190,7 +191,7 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (
 	signature := header.Extra[len(header.Extra)-extraSeal:]
 
 	// Recover the public key and the Ethereum address
-	pubkey, err := crypto.Ecrecover(SealHash(header, chainId).Bytes(), signature)
+	pubkey, err := oqs_crypto.Ecrecover(SealHash(header, chainId).Bytes(), signature)
 	if err != nil {
 		return nil, common.Address{}, err
 	}
@@ -447,7 +448,8 @@ func (c *Poseidon) verifySeal(chain consensus.ChainHeaderReader, header *types.H
 	if err != nil {
 		return err
 	}
-	beta, err := vrf.Verify(publicKey, alpha, pi)
+	_ = publicKey
+	beta, err := vrf.Verify(nil, alpha, pi)
 	if err != nil {
 		return err
 	}

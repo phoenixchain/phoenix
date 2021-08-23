@@ -26,7 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 )
 
 const (
@@ -199,7 +199,7 @@ func (ks *KeyStore) ImportKey(keyJSON []byte, passphrase, newPassphrase string) 
 
 // ImportECDSAKey stores the given encrypted JSON key into the key directory.
 func (ks *KeyStore) ImportECDSAKey(key []byte, passphrase string) (account *Account, _ error) {
-	privkey, err := crypto.ToECDSA(common.CopyBytes(key))
+	privkey, err := oqs_crypto.ToECDSA(common.CopyBytes(key))
 	if err != nil {
 		return nil, err
 	}

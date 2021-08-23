@@ -20,13 +20,13 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/elliptic"
+	"github.com/ethereum/go-ethereum/oqs/oqs_elliptic"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	pcsc "github.com/gballet/go-libpcsclite"
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/text/unicode/norm"
@@ -63,11 +63,11 @@ type SecureChannelSession struct {
 // NewSecureChannelSession creates a new secure channel for the given card and public key.
 func NewSecureChannelSession(card *pcsc.Card, keyData []byte) (*SecureChannelSession, error) {
 	// Generate an ECDSA keypair for ourselves
-	key, err := crypto.GenerateKey()
+	key, err := oqs_crypto.GenerateKey()
 	if err != nil {
 		return nil, err
 	}
-	cardPublic, err := crypto.UnmarshalPubkey(keyData)
+	cardPublic, err := oqs_crypto.UnmarshalPubkey(keyData)
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal public key from card: %v", err)
 	}
@@ -75,7 +75,7 @@ func NewSecureChannelSession(card *pcsc.Card, keyData []byte) (*SecureChannelSes
 	return &SecureChannelSession{
 		card:      card,
 		secret:    secret.Bytes(),
-		publicKey: elliptic.Marshal(crypto.S256(), key.PublicKey.X, key.PublicKey.Y),
+		publicKey: oqs_elliptic.Marshal(oqs_crypto.S256(), key.PublicKey.X, key.PublicKey.Y),
 	}, nil
 }
 

@@ -17,7 +17,7 @@
 package core
 
 import (
-	"crypto/ecdsa"
+	"github.com/ethereum/go-ethereum/oqs/oqs_ecdsa"
 	"io/ioutil"
 	"math/big"
 	"os"
@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -73,8 +73,8 @@ func BenchmarkInsertChain_ring1000_diskdb(b *testing.B) {
 
 var (
 	// This is the content of the genesis block used by the benchmarks.
-	benchRootKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-	benchRootAddr   = crypto.PubkeyToAddress(benchRootKey.PublicKey)
+	benchRootKey, _ = oqs_crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+	benchRootAddr   = oqs_crypto.PubkeyToAddress(benchRootKey.PublicKey)
 	benchRootFunds  = math.BigPow(2, 100)
 )
 
@@ -92,7 +92,7 @@ func genValueTx(nbytes int) func(int, *BlockGen) {
 }
 
 var (
-	ringKeys  = make([]*ecdsa.PrivateKey, 1000)
+	ringKeys  = make([]*oqs_ecdsa.PrivateKey, 1000)
 	ringAddrs = make([]common.Address, len(ringKeys))
 )
 
@@ -100,8 +100,8 @@ func init() {
 	ringKeys[0] = benchRootKey
 	ringAddrs[0] = benchRootAddr
 	for i := 1; i < len(ringKeys); i++ {
-		ringKeys[i], _ = crypto.GenerateKey()
-		ringAddrs[i] = crypto.PubkeyToAddress(ringKeys[i].PublicKey)
+		ringKeys[i], _ = oqs_crypto.GenerateKey()
+		ringAddrs[i] = oqs_crypto.PubkeyToAddress(ringKeys[i].PublicKey)
 	}
 }
 

@@ -18,7 +18,7 @@ package types
 
 import (
 	"bytes"
-	"crypto/ecdsa"
+	"github.com/ethereum/go-ethereum/oqs/oqs_ecdsa"
 	"encoding/json"
 	"fmt"
 	"math/big"
@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -116,8 +116,8 @@ func TestEIP2718TransactionSigHash(t *testing.T) {
 func TestEIP2930Signer(t *testing.T) {
 
 	var (
-		key, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
-		keyAddr = crypto.PubkeyToAddress(key.PublicKey)
+		key, _  = oqs_crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		keyAddr = oqs_crypto.PubkeyToAddress(key.PublicKey)
 		signer1 = NewEIP2930Signer(big.NewInt(1))
 		signer2 = NewEIP2930Signer(big.NewInt(2))
 		tx0     = NewTx(&AccessListTx{Nonce: 1})
@@ -220,9 +220,9 @@ func decodeTx(data []byte) (*Transaction, error) {
 	return t, err
 }
 
-func defaultTestKey() (*ecdsa.PrivateKey, common.Address) {
-	key, _ := crypto.HexToECDSA("45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8")
-	addr := crypto.PubkeyToAddress(key.PublicKey)
+func defaultTestKey() (*oqs_ecdsa.PrivateKey, common.Address) {
+	key, _ := oqs_crypto.HexToECDSA("45a915e4d060149eb4365960e6a7a45f334393093061116b197e3240065ff2d8")
+	addr := oqs_crypto.PubkeyToAddress(key.PublicKey)
 	return key, addr
 }
 
@@ -274,9 +274,9 @@ func TestTransactionPriceNonceSort1559(t *testing.T) {
 // the same account.
 func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 	// Generate a batch of accounts to start with
-	keys := make([]*ecdsa.PrivateKey, 25)
+	keys := make([]*oqs_ecdsa.PrivateKey, 25)
 	for i := 0; i < len(keys); i++ {
-		keys[i], _ = crypto.GenerateKey()
+		keys[i], _ = oqs_crypto.GenerateKey()
 	}
 	signer := LatestSignerForChainID(common.Big1)
 
@@ -284,7 +284,7 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 	groups := map[common.Address]Transactions{}
 	expectedCount := 0
 	for start, key := range keys {
-		addr := crypto.PubkeyToAddress(key.PublicKey)
+		addr := oqs_crypto.PubkeyToAddress(key.PublicKey)
 		count := 25
 		for i := 0; i < 25; i++ {
 			var tx *Transaction
@@ -361,16 +361,16 @@ func testTransactionPriceNonceSort(t *testing.T, baseFee *big.Int) {
 // are prioritized to avoid network spam attacks aiming for a specific ordering.
 func TestTransactionTimeSort(t *testing.T) {
 	// Generate a batch of accounts to start with
-	keys := make([]*ecdsa.PrivateKey, 5)
+	keys := make([]*oqs_ecdsa.PrivateKey, 5)
 	for i := 0; i < len(keys); i++ {
-		keys[i], _ = crypto.GenerateKey()
+		keys[i], _ = oqs_crypto.GenerateKey()
 	}
 	signer := HomesteadSigner{}
 
 	// Generate a batch of transactions with overlapping prices, but different creation times
 	groups := map[common.Address]Transactions{}
 	for start, key := range keys {
-		addr := crypto.PubkeyToAddress(key.PublicKey)
+		addr := oqs_crypto.PubkeyToAddress(key.PublicKey)
 
 		tx, _ := SignTx(NewTransaction(0, common.Address{}, big.NewInt(100), 100, big.NewInt(1), nil), signer, key)
 		tx.time = time.Unix(0, int64(len(keys)-start))
@@ -407,7 +407,7 @@ func TestTransactionTimeSort(t *testing.T) {
 
 // TestTransactionCoding tests serializing/de-serializing to/from rlp and JSON.
 func TestTransactionCoding(t *testing.T) {
-	key, err := crypto.GenerateKey()
+	key, err := oqs_crypto.GenerateKey()
 	if err != nil {
 		t.Fatalf("could not generate key: %v", err)
 	}

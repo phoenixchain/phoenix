@@ -19,7 +19,7 @@ package tracers
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
+	"github.com/ethereum/go-ethereum/oqs/oqs_ecdsa"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -38,7 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
@@ -592,7 +592,7 @@ func TestTraceBlock(t *testing.T) {
 }
 
 type Account struct {
-	key  *ecdsa.PrivateKey
+	key  *oqs_ecdsa.PrivateKey
 	addr common.Address
 }
 
@@ -604,8 +604,8 @@ func (a Accounts) Less(i, j int) bool { return bytes.Compare(a[i].addr.Bytes(), 
 
 func newAccounts(n int) (accounts Accounts) {
 	for i := 0; i < n; i++ {
-		key, _ := crypto.GenerateKey()
-		addr := crypto.PubkeyToAddress(key.PublicKey)
+		key, _ := oqs_crypto.GenerateKey()
+		addr := oqs_crypto.PubkeyToAddress(key.PublicKey)
 		accounts = append(accounts, Account{key: key, addr: addr})
 	}
 	sort.Sort(accounts)

@@ -24,7 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/oqs/oqs_crypto"
 	"gopkg.in/urfave/cli.v1"
 )
 
@@ -68,7 +68,7 @@ To sign a message contained in a file, use the --msgfile flag.
 			utils.Fatalf("Error decrypting key: %v", err)
 		}
 
-		signature, err := crypto.Sign(signHash(message), key.PrivateKey)
+		signature, err := oqs_crypto.Sign(signHash(message), key.PrivateKey)
 		if err != nil {
 			utils.Fatalf("Failed to sign message: %v", err)
 		}
@@ -113,12 +113,12 @@ It is possible to refer to a file containing the message.`,
 			utils.Fatalf("Signature encoding is not hexadecimal: %v", err)
 		}
 
-		recoveredPubkey, err := crypto.SigToPub(signHash(message), signature)
+		recoveredPubkey, err := oqs_crypto.SigToPub(signHash(message), signature)
 		if err != nil || recoveredPubkey == nil {
 			utils.Fatalf("Signature verification failed: %v", err)
 		}
-		recoveredPubkeyBytes := crypto.FromECDSAPub(recoveredPubkey)
-		recoveredAddress := crypto.PubkeyToAddress(*recoveredPubkey)
+		recoveredPubkeyBytes := oqs_crypto.FromECDSAPub(recoveredPubkey)
+		recoveredAddress := oqs_crypto.PubkeyToAddress(*recoveredPubkey)
 		success := address == recoveredAddress
 
 		out := outputVerify{

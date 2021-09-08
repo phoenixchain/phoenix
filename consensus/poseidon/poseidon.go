@@ -830,7 +830,6 @@ func (c *Poseidon) Heartbeat(number *big.Int) error {
 	toAddress := common.HexToAddress(systemcontracts.ValidatorHubContract)
 	gas := (hexutil.Uint64)(uint64(100000))
 
-	//gasPrice := (*hexutil.Big)(big.NewInt(0))
 	_, err = c.txPoolAPI.SendTransaction(ctx, ethapi.TransactionArgs{From: &c.val, To: &toAddress, Data: &msgData, Gas: &gas})
 	if err != nil {
 		return err

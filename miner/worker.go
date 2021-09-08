@@ -1012,8 +1012,11 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	delete(pending, w.coinbase) //Delete my pending transactions
 
 	spos, isPoSA := w.engine.(consensus.PoSA)
-	if isPoSA && w.isRunning(){
-		txs,err := spos.GetSystemTransaction(w.current.signer, w.current.state, w.current.header.BaseFee, big.NewInt(0))
+	if isPoSA && w.isRunning() {
+		txs, err := spos.GetSystemTransaction(w.current.signer, w.current.state, w.current.header.BaseFee, big.NewInt(0))
+		if err != nil {
+			log.Warn("Failed to GetSystemTransaction", "err", err)
+		}
 		if err == nil && w.commitTransactions(txs, w.coinbase, new(int32)) {
 			return
 		}

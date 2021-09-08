@@ -2064,7 +2064,7 @@ func toHexSlice(b [][]byte) []string {
 }
 
 func tridentCanTransfer(ctx context.Context, b Backend, tx *types.Transaction) bool {
-	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
+	blockNrOrHash := rpc.BlockNumberOrHashWithNumber(rpc.LatestBlockNumber)
 	state, header, err := b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 	if state == nil || err != nil {
 		return true

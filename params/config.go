@@ -25,6 +25,10 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+var (
+	OverrideBigBen = big.NewInt(240590)
+)
+
 // Genesis hashes to enforce below configs on.
 var (
 	MainnetGenesisHash   = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
@@ -33,7 +37,9 @@ var (
 	GoerliGenesisHash    = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
 	CalaverasGenesisHash = common.HexToHash("0xeb9233d066c275efcdfed8037f4fc082770176aefdbcb7691c71da412a5670f2")
 
-	PhoenixGenesisHash = common.HexToHash("0x57abea5803cd08975a8c554e1e5d127ad3fd6d73768638a72df2b630cb45d10a")
+	PhoenixGenesisHash     = common.HexToHash("0x7aa6aa963f0f5ce99db4a694cf1028077739b16b51190d2c656014060e67fd7f")
+	PhoenixDevGenesisHash  = common.HexToHash("0x61fc76a35a083ed857d206c024c8f3ae4c94778dff14bceaeada25920e01fc4b")
+	PhoenixTestGenesisHash = common.HexToHash("0x04ae205d5b765b87aa17e20e9dd97055a65eda5bf2f64fe66441da9ad6502268")
 )
 
 // TrustedCheckpoints associates each known checkpoint with the genesis hash of
@@ -71,6 +77,7 @@ var (
 		MuirGlacierBlock:    big.NewInt(0),
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
+		BigBenBlock:         OverrideBigBen,
 		TridentBlock:        big.NewInt(345600),
 		Poseidon: &PoseidonConfig{
 			Period: 3,
@@ -272,17 +279,16 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, new(EthashConfig), nil, nil}
+	AllEthashProtocolChanges = &ChainConfig{ChainID: big.NewInt(1337), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), MuirGlacierBlock: big.NewInt(0), BerlinBlock: big.NewInt(0), LondonBlock: big.NewInt(0), BigBenBlock: big.NewInt(0), CatalystBlock: big.NewInt(0), Clique: nil, Ethash: new(EthashConfig), Poseidon: nil}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
-
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, new(EthashConfig), nil, nil}
-	TestRules       = TestChainConfig.Rules(new(big.Int))
+	AllCliqueProtocolChanges = &ChainConfig{ChainID: big.NewInt(1337), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), MuirGlacierBlock: big.NewInt(0), BerlinBlock: big.NewInt(0), LondonBlock: big.NewInt(0), TridentBlock: big.NewInt(0), BigBenBlock: big.NewInt(0), CatalystBlock: big.NewInt(0), Ethash: nil, Clique: &CliqueConfig{Period: 0, Epoch: 30000}, Poseidon: nil}
+	TestChainConfig          = &ChainConfig{ChainID: big.NewInt(1), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), MuirGlacierBlock: big.NewInt(0), BerlinBlock: big.NewInt(0), LondonBlock: big.NewInt(0), TridentBlock: big.NewInt(0), BigBenBlock: big.NewInt(0), CatalystBlock: nil, Ethash: new(EthashConfig), Clique: nil, Poseidon: nil}
+	TestRules                = TestChainConfig.Rules(new(big.Int))
 )
 
 // TrustedCheckpoint represents a set of post-processed trie roots (CHT and
@@ -361,6 +367,7 @@ type ChainConfig struct {
 	BerlinBlock         *big.Int `json:"berlinBlock,omitempty"`         // Berlin switch block (nil = no fork, 0 = already on berlin)
 	LondonBlock         *big.Int `json:"londonBlock,omitempty"`         // London switch block (nil = no fork, 0 = already on london)
 	TridentBlock        *big.Int `json:"tridentBlock,omitempty"`
+	BigBenBlock         *big.Int `json:"bigBenBlock,omitempty"`
 
 	CatalystBlock *big.Int `json:"catalystBlock,omitempty"` // Catalyst switch block (nil = no fork, 0 = already on catalyst)
 
@@ -427,6 +434,7 @@ func (c *ChainConfig) String() string {
 		c.MuirGlacierBlock,
 		c.BerlinBlock,
 		c.LondonBlock,
+		c.BigBenBlock,
 		c.TridentBlock,
 		engine,
 	)
@@ -494,6 +502,10 @@ func (c *ChainConfig) IsLondon(num *big.Int) bool {
 	return isForked(c.LondonBlock, num)
 }
 
+func (c *ChainConfig) IsBigBen(num *big.Int) bool {
+	return isForked(c.BigBenBlock, num)
+}
+
 func (c *ChainConfig) IsTrident(num *big.Int) bool {
 	return isForked(c.TridentBlock, num)
 }
@@ -543,6 +555,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "muirGlacierBlock", block: c.MuirGlacierBlock, optional: true},
 		{name: "berlinBlock", block: c.BerlinBlock},
 		{name: "londonBlock", block: c.LondonBlock},
+		//{name: "bigBenBlock", block: c.BigBenBlock},
 		{name: "tridentBlock", block: c.TridentBlock},
 	} {
 		if lastFork.name != "" {
@@ -612,6 +625,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	}
 	if isForkIncompatible(c.LondonBlock, newcfg.LondonBlock, head) {
 		return newCompatError("London fork block", c.LondonBlock, newcfg.LondonBlock)
+	}
+	if isForkIncompatible(c.BigBenBlock, newcfg.BigBenBlock, head) {
+		return newCompatError("BigBen fork block", c.BigBenBlock, newcfg.BigBenBlock)
 	}
 	if isForkIncompatible(c.TridentBlock, newcfg.TridentBlock, head) {
 		return newCompatError("Trident fork block", c.TridentBlock, newcfg.TridentBlock)

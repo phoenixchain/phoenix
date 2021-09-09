@@ -149,7 +149,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		Checkpoint              *params.TrustedCheckpoint      `toml:",omitempty"`
 		CheckpointOracle        *params.CheckpointOracleConfig `toml:",omitempty"`
 		OverrideLondon          *big.Int                       `toml:",omitempty"`
-		OverrideBigBen          *big.Int                       `toml:",omitempty"`
 	}
 	var dec Config
 	if err := unmarshal(&dec); err != nil {
@@ -277,9 +276,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.OverrideLondon != nil {
 		c.OverrideLondon = dec.OverrideLondon
-	}
-	if dec.OverrideBigBen != nil {
-		c.OverrideBigBen = dec.OverrideBigBen
 	}
 	return nil
 }

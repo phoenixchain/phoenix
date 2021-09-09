@@ -6,6 +6,7 @@
       "eip155Block": 0,
       "eip158Block": 0,
       "londonBlock": 0,
+      "bigBenBlock": 257800,
       "tridentBlock":345600,
       "byzantiumBlock": 0,
       "constantinopleBlock": 0,

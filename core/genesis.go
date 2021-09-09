@@ -155,10 +155,10 @@ func (e *GenesisMismatchError) Error() string {
 //
 // The returned chain configuration is never nil.
 func SetupGenesisBlock(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, common.Hash, error) {
-	return SetupGenesisBlockWithOverride(db, genesis, nil, nil)
+	return SetupGenesisBlockWithOverride(db, genesis, nil)
 }
 
-func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideLondon, overrideBigBen *big.Int) (*params.ChainConfig, common.Hash, error) {
+func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, overrideLondon *big.Int) (*params.ChainConfig, common.Hash, error) {
 	if genesis != nil && genesis.Config == nil {
 		return params.AllEthashProtocolChanges, common.Hash{}, errGenesisNoConfig
 	}
@@ -217,19 +217,10 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 		return newcfg, stored, nil
 	}
 
-	if genesis == nil && (stored == params.PhoenixGenesisHash || stored == params.PhoenixDevGenesisHash || stored == params.PhoenixTestGenesisHash) {
-		if storedcfg.BigBenBlock == nil && overrideBigBen != nil {
-			storedcfg.BigBenBlock = overrideBigBen
-			rawdb.WriteChainConfig(db, stored, storedcfg)
-		}
-
-		return storedcfg, stored, nil
-	}
-
 	// Special case: don't change the existing config of a non-mainnet chain if no new
 	// config is supplied. These chains would get AllProtocolChanges (and a compat error)
 	// if we just continued here.
-	if genesis == nil && stored != params.MainnetGenesisHash {
+	if genesis == nil && stored != params.MainnetGenesisHash && (stored != params.PhoenixGenesisHash && stored != params.PhoenixTestGenesisHash) {
 		return storedcfg, stored, nil
 	}
 	// Check config compatibility and write the config. Compatibility errors
@@ -262,6 +253,8 @@ func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 		return params.CalaverasChainConfig
 	case ghash == params.PhoenixGenesisHash:
 		return params.PhoenixChainConfig
+	case ghash == params.PhoenixTestGenesisHash:
+		return params.PhoenixTestChainConfig
 	default:
 		return params.AllEthashProtocolChanges
 	}

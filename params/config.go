@@ -25,10 +25,6 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
-var (
-	OverrideBigBen = big.NewInt(240590)
-)
-
 // Genesis hashes to enforce below configs on.
 var (
 	MainnetGenesisHash   = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
@@ -38,7 +34,6 @@ var (
 	CalaverasGenesisHash = common.HexToHash("0xeb9233d066c275efcdfed8037f4fc082770176aefdbcb7691c71da412a5670f2")
 
 	PhoenixGenesisHash     = common.HexToHash("0x7aa6aa963f0f5ce99db4a694cf1028077739b16b51190d2c656014060e67fd7f")
-	PhoenixDevGenesisHash  = common.HexToHash("0x61fc76a35a083ed857d206c024c8f3ae4c94778dff14bceaeada25920e01fc4b")
 	PhoenixTestGenesisHash = common.HexToHash("0x04ae205d5b765b87aa17e20e9dd97055a65eda5bf2f64fe66441da9ad6502268")
 )
 
@@ -77,11 +72,32 @@ var (
 		MuirGlacierBlock:    big.NewInt(0),
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
-		BigBenBlock:         OverrideBigBen,
-		TridentBlock:        big.NewInt(345600),
+		BigBenBlock:         big.NewInt(257_800),
+		TridentBlock:        big.NewInt(345_600),
 		Poseidon: &PoseidonConfig{
-			Period: 3,
-			//Epoch:  200,
+			Period: 15,
+		},
+	}
+
+	PhoenixTestChainConfig = &ChainConfig{
+		ChainID:             big.NewInt(2200),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        big.NewInt(0),
+		DAOForkSupport:      false,
+		EIP150Block:         big.NewInt(0),
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(50),
+		BigBenBlock:         big.NewInt(60),
+		TridentBlock:        big.NewInt(80),
+		Poseidon: &PoseidonConfig{
+			Period: 15,
 		},
 	}
 
@@ -555,7 +571,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "muirGlacierBlock", block: c.MuirGlacierBlock, optional: true},
 		{name: "berlinBlock", block: c.BerlinBlock},
 		{name: "londonBlock", block: c.LondonBlock},
-		//{name: "bigBenBlock", block: c.BigBenBlock},
+		{name: "bigBenBlock", block: c.BigBenBlock},
 		{name: "tridentBlock", block: c.TridentBlock},
 	} {
 		if lastFork.name != "" {

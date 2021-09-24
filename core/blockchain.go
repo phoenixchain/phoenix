@@ -91,6 +91,8 @@ const (
 	maxTimeFutureBlocks = 30
 	TriesInMemory       = 128
 
+	maxReorgLimit = 12
+
 	// BlockChainVersion ensures that an incompatible database forces a resync from scratch.
 	//
 	// Changelog:
@@ -2199,9 +2201,10 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	if len(oldChain) > 0 && len(newChain) > 0 {
 		logFn := log.Info
 		msg := "Chain reorg detected"
-		if len(oldChain) > 63 {
+		largeReorg := len(oldChain) > maxReorgLimit
+		if largeReorg {
 			msg = "Large chain reorg detected"
-			logFn = log.Warn
+			return fmt.Errorf(msg)
 		}
 		logFn(msg, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
 			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())

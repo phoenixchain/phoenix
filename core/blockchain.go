@@ -91,7 +91,7 @@ const (
 	maxTimeFutureBlocks = 30
 	TriesInMemory       = 128
 
-	maxReorgLimit = 12
+	maxReorgLimit = 16
 
 	// BlockChainVersion ensures that an incompatible database forces a resync from scratch.
 	//

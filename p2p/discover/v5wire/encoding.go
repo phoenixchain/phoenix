@@ -86,8 +86,8 @@ const (
 
 // Protocol constants.
 const (
-	version         = 1
-	minVersion      = 1
+	version         = 2
+	minVersion      = 2
 	sizeofMaskingIV = 16
 
 	minMessageSize      = 48 // this refers to data after static headers

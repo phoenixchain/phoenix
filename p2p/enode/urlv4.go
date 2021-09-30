@@ -17,6 +17,7 @@
 package enode
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"encoding/hex"
 	"errors"
@@ -192,6 +193,10 @@ func (n *Node) URLv4() string {
 		}
 	}
 	return u.String()
+}
+
+func (n *Node) CheckIDv4() bool {
+	return bytes.Equal(n.id[0:4], prefixV4ID)
 }
 
 // PubkeyToIDV4 derives the v4 node address from the given public key.

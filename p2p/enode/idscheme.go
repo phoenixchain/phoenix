@@ -28,6 +28,10 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+var (
+	prefixV4ID = []byte{0x12, 0x23, 0x34, 0x45}
+)
+
 // List of known secure identity schemes.
 var ValidSchemes = enr.SchemeMap{
 	"v4": V4ID{},
@@ -86,7 +90,10 @@ func (V4ID) NodeAddr(r *enr.Record) []byte {
 	buf := make([]byte, 64)
 	math.ReadBits(pubkey.X, buf[:32])
 	math.ReadBits(pubkey.Y, buf[32:])
-	return crypto.Keccak256(buf)
+
+	a := make([]byte, 32)
+	a = append(a, prefixV4ID...)
+	return append(a, crypto.Keccak256(buf)[4:]...)
 }
 
 // Secp256k1 is the "secp256k1" key, which holds a public key.

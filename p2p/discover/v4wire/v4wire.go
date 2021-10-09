@@ -218,7 +218,7 @@ func Decode(input []byte) (Packet, Pubkey, []byte, error) {
 	}
 	magic, hash, sig, sigdata := input[magicSize:], input[magicSize:macSize], input[macSize:headSize], input[headSize:]
 	if !bytes.Equal(magic, magicv4) {
-		return nil, Pubkey{}, nil, ErrPacketTooSmall
+		return nil, Pubkey{}, nil, ErrPacketBadMagic
 	}
 	shouldhash := crypto.Keccak256(input[macSize:])
 	if !bytes.Equal(hash, shouldhash) {

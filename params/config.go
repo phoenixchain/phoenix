@@ -73,6 +73,7 @@ var (
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
 		BigBenBlock:         big.NewInt(257_800),
+		ThamesBlock:         big.NewInt(430_000),
 		TridentBlock:        big.NewInt(550_000),
 		Poseidon: &PoseidonConfig{
 			Period: 15,
@@ -95,6 +96,7 @@ var (
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(50),
 		BigBenBlock:         big.NewInt(60),
+		ThamesBlock:         big.NewInt(70),
 		TridentBlock:        big.NewInt(80),
 		Poseidon: &PoseidonConfig{
 			Period: 15,
@@ -295,15 +297,15 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{ChainID: big.NewInt(1337), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), MuirGlacierBlock: big.NewInt(0), BerlinBlock: big.NewInt(0), LondonBlock: big.NewInt(0), BigBenBlock: big.NewInt(0), CatalystBlock: big.NewInt(0), Clique: nil, Ethash: new(EthashConfig), Poseidon: nil}
+	AllEthashProtocolChanges = &ChainConfig{ChainID: big.NewInt(1337), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), MuirGlacierBlock: big.NewInt(0), BerlinBlock: big.NewInt(0), LondonBlock: big.NewInt(0), BigBenBlock: big.NewInt(0), ThamesBlock: big.NewInt(0), CatalystBlock: big.NewInt(0), Clique: nil, Ethash: new(EthashConfig), Poseidon: nil}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{ChainID: big.NewInt(1337), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), MuirGlacierBlock: big.NewInt(0), BerlinBlock: big.NewInt(0), LondonBlock: big.NewInt(0), TridentBlock: big.NewInt(0), BigBenBlock: big.NewInt(0), CatalystBlock: big.NewInt(0), Ethash: nil, Clique: &CliqueConfig{Period: 0, Epoch: 30000}, Poseidon: nil}
-	TestChainConfig          = &ChainConfig{ChainID: big.NewInt(1), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), MuirGlacierBlock: big.NewInt(0), BerlinBlock: big.NewInt(0), LondonBlock: big.NewInt(0), TridentBlock: big.NewInt(0), BigBenBlock: big.NewInt(0), CatalystBlock: nil, Ethash: new(EthashConfig), Clique: nil, Poseidon: nil}
+	AllCliqueProtocolChanges = &ChainConfig{ChainID: big.NewInt(1337), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), MuirGlacierBlock: big.NewInt(0), BerlinBlock: big.NewInt(0), LondonBlock: big.NewInt(0), TridentBlock: big.NewInt(0), BigBenBlock: big.NewInt(0), ThamesBlock: big.NewInt(0), CatalystBlock: big.NewInt(0), Ethash: nil, Clique: &CliqueConfig{Period: 0, Epoch: 30000}, Poseidon: nil}
+	TestChainConfig          = &ChainConfig{ChainID: big.NewInt(1), HomesteadBlock: big.NewInt(0), DAOForkBlock: nil, DAOForkSupport: false, EIP150Block: big.NewInt(0), EIP150Hash: common.Hash{}, EIP155Block: big.NewInt(0), EIP158Block: big.NewInt(0), ByzantiumBlock: big.NewInt(0), ConstantinopleBlock: big.NewInt(0), PetersburgBlock: big.NewInt(0), IstanbulBlock: big.NewInt(0), MuirGlacierBlock: big.NewInt(0), BerlinBlock: big.NewInt(0), LondonBlock: big.NewInt(0), TridentBlock: big.NewInt(0), BigBenBlock: big.NewInt(0), ThamesBlock: big.NewInt(0), CatalystBlock: nil, Ethash: new(EthashConfig), Clique: nil, Poseidon: nil}
 	TestRules                = TestChainConfig.Rules(new(big.Int))
 )
 
@@ -384,6 +386,7 @@ type ChainConfig struct {
 	LondonBlock         *big.Int `json:"londonBlock,omitempty"`         // London switch block (nil = no fork, 0 = already on london)
 	TridentBlock        *big.Int `json:"tridentBlock,omitempty"`
 	BigBenBlock         *big.Int `json:"bigBenBlock,omitempty"`
+	ThamesBlock         *big.Int `json:"thamesBlock,omitempty"`
 
 	CatalystBlock *big.Int `json:"catalystBlock,omitempty"` // Catalyst switch block (nil = no fork, 0 = already on catalyst)
 
@@ -435,7 +438,7 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, London: %v, BigBen %v, Trident %v, Engine: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Muir Glacier: %v, Berlin: %v, London: %v, BigBen %v, Thames %v, Trident %v, Engine: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -451,6 +454,7 @@ func (c *ChainConfig) String() string {
 		c.BerlinBlock,
 		c.LondonBlock,
 		c.BigBenBlock,
+		c.ThamesBlock,
 		c.TridentBlock,
 		engine,
 	)
@@ -522,6 +526,12 @@ func (c *ChainConfig) IsBigBen(num *big.Int) bool {
 	return isForked(c.BigBenBlock, num)
 }
 
+func (c *ChainConfig) IsThames(num *big.Int) bool {
+	return isForked(c.ThamesBlock, num)
+}
+
+//
+
 func (c *ChainConfig) IsTrident(num *big.Int) bool {
 	return isForked(c.TridentBlock, num)
 }
@@ -572,6 +582,7 @@ func (c *ChainConfig) CheckConfigForkOrder() error {
 		{name: "berlinBlock", block: c.BerlinBlock},
 		{name: "londonBlock", block: c.LondonBlock},
 		{name: "bigBenBlock", block: c.BigBenBlock},
+		{name: "thamesBlock", block: c.ThamesBlock},
 		{name: "tridentBlock", block: c.TridentBlock},
 	} {
 		if lastFork.name != "" {
@@ -644,6 +655,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	}
 	if isForkIncompatible(c.BigBenBlock, newcfg.BigBenBlock, head) {
 		return newCompatError("BigBen fork block", c.BigBenBlock, newcfg.BigBenBlock)
+	}
+	if isForkIncompatible(c.ThamesBlock, newcfg.ThamesBlock, head) {
+		return newCompatError("Thames fork block", c.ThamesBlock, newcfg.ThamesBlock)
 	}
 	if isForkIncompatible(c.TridentBlock, newcfg.TridentBlock, head) {
 		return newCompatError("Trident fork block", c.TridentBlock, newcfg.TridentBlock)

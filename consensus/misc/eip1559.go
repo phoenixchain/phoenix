@@ -86,8 +86,10 @@ func CalcBaseFee(config *params.ChainConfig, parent *types.Header) *big.Int {
 		baseFeeDelta := x.Div(y, baseFeeChangeDenominator)
 
 		minBaseFee := params.MinBaseFee
-		if config.IsBigBen(parent.Number) {
-			minBaseFee = params.InitialBaseFee
+		if config.IsThames(parent.Number) {
+			minBaseFee = params.ThamesBaseFee
+		} else if config.IsBigBen(parent.Number) {
+			minBaseFee = params.BigBenBaseFee
 		}
 
 		return math.BigMax(

@@ -73,7 +73,7 @@ var (
 		BerlinBlock:         big.NewInt(0),
 		LondonBlock:         big.NewInt(0),
 		BigBenBlock:         big.NewInt(257_800),
-		ThamesBlock:         big.NewInt(430_000),
+		ThamesBlock:         big.NewInt(430_430),
 		TridentBlock:        big.NewInt(550_000),
 		Poseidon: &PoseidonConfig{
 			Period: 15,
